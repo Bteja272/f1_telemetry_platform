@@ -11,6 +11,7 @@ import {
 import "./index.css";
 
 const WS_URL = "ws://127.0.0.1:8000/ws/telemetry/1";
+const METRICS_URL = "http://127.0.0.1:8000/metrics/system";
 
 function MetricCard({ title, value, unit }) {
   return (
@@ -27,6 +28,7 @@ function App() {
   const [telemetry, setTelemetry] = useState(null);
   const [chartData, setChartData] = useState([]);
   const [connected, setConnected] = useState(false);
+  const [metrics, setMetrics] = useState(null);
 
   useEffect(() => {
     const socket = new WebSocket(WS_URL);
@@ -73,6 +75,24 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    const fetchMetrics = async () => {
+      try {
+        const response = await fetch(METRICS_URL);
+        const data = await response.json();
+        setMetrics(data);
+      } catch (error) {
+        console.error("Failed to fetch metrics", error);
+      }
+    };
+
+    fetchMetrics();
+
+    const interval = setInterval(fetchMetrics, 5000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <main className="dashboard">
       <section className="header">
@@ -114,6 +134,29 @@ function App() {
         <MetricCard title="Throttle" value={telemetry?.throttle} unit="%" />
         <MetricCard title="Brake" value={telemetry?.brake} unit="%" />
         <MetricCard title="DRS" value={telemetry?.drs} unit="" />
+      </section>
+
+      <section className="metrics-grid">
+        <MetricCard
+          title="Total Events"
+          value={metrics?.total_telemetry_events}
+          unit=""
+        />
+        <MetricCard
+          title="Active Drivers"
+          value={metrics?.active_cached_drivers}
+          unit=""
+        />
+        <MetricCard
+          title="DB Latency"
+          value={metrics?.timescaledb_query_latency_ms}
+          unit="ms"
+        />
+        <MetricCard
+          title="Redis Latency"
+          value={metrics?.redis_query_latency_ms}
+          unit="ms"
+        />
       </section>
 
       <section className="chart-card">
