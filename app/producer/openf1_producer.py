@@ -17,21 +17,23 @@ def create_kafka_producer() -> KafkaProducer:
 
 def fetch_json(endpoint: str, params: dict | None = None) -> list[dict]:
     url = f"{settings.OPENF1_BASE_URL}/{endpoint}"
-    response = requests.get(url, params=params or {}, timeout=20)
+
+    response = requests.get(
+        url,
+        params=params or {},
+        timeout=20,
+    )
 
     print(f"{endpoint} URL:", response.url)
     print(f"{endpoint} status:", response.status_code)
     print(f"{endpoint} preview:", response.text[:300])
 
     response.raise_for_status()
+
     return response.json()
 
 
 def get_recent_session_with_drivers() -> tuple[int, int]:
-    """
-    Finds a recent session and a valid driver for that session.
-    This avoids hardcoding session_key/date/driver combinations.
-    """
     sessions = fetch_json(
         "sessions",
         params={
@@ -43,8 +45,11 @@ def get_recent_session_with_drivers() -> tuple[int, int]:
     if not sessions:
         raise RuntimeError("No sessions found")
 
-    # Try recent races first
-    sessions = sorted(sessions, key=lambda s: s.get("date_start", ""), reverse=True)
+    sessions = sorted(
+        sessions,
+        key=lambda s: s.get("date_start", ""),
+        reverse=True,
+    )
 
     for session in sessions[:10]:
         session_key = session["session_key"]
@@ -54,69 +59,39 @@ def get_recent_session_with_drivers() -> tuple[int, int]:
                 "drivers",
                 params={"session_key": session_key},
             )
+
         except Exception:
             continue
 
         if drivers:
             driver_number = drivers[0]["driver_number"]
-            print(f"Selected session_key={session_key}, driver_number={driver_number}")
+
+            print(
+                f"Selected session_key={session_key}, "
+                f"driver_number={driver_number}"
+            )
+
             return session_key, driver_number
 
-    raise RuntimeError("Could not find a session with drivers")
+    raise RuntimeError("Could not find a valid session")
 
 
 def fetch_openf1_car_data() -> list[dict]:
-    """
-    Pulls a small telemetry sample using a discovered valid session and driver.
-    Uses OpenF1's CSV mode with a row limit-like strategy by filtering driver/session.
-    """
     session_key, driver_number = get_recent_session_with_drivers()
 
-    # First attempt: use only session + driver.
-    # If API says too much data, we fallback to a known small limit through date discovery.
-    try:
-        data = fetch_json(
-            "car_data",
-            params={
-                "session_key": session_key,
-                "driver_number": driver_number,
-            },
-        )
-
-        if data:
-            return data[:50]
-
-    except requests.exceptions.HTTPError as e:
-        print("Initial car_data request failed; trying smaller fallback query.")
-
-    # Fallback: discover location timestamps for same session/driver, then query near that time.
-    locations = fetch_json(
-        "location",
-        params={
-            "session_key": session_key,
-            "driver_number": driver_number,
-        },
-    )
-
-    if not locations:
-        raise RuntimeError("No location data found for fallback")
-
-    first_time = locations[0]["date"]
-
-    # Query exact lower bound near known valid telemetry time.
     data = fetch_json(
         "car_data",
         params={
             "session_key": session_key,
             "driver_number": driver_number,
-            "date>=": first_time,
+            "speed>": 100,
         },
     )
 
     if not data:
-        raise RuntimeError("No car_data found after fallback")
+        raise RuntimeError("No moving telemetry found")
 
-    return data[:50]
+    return data[:100]
 
 
 def normalize_event(raw: dict) -> dict:
@@ -137,20 +112,28 @@ def normalize_event(raw: dict) -> dict:
 
 def publish_events():
     producer = create_kafka_producer()
+
     raw_events = fetch_openf1_car_data()
 
-    print(f"Fetched {len(raw_events)} OpenF1 telemetry events")
+    print(f"Fetched {len(raw_events)} moving telemetry events")
 
-    for raw in raw_events[:25]:
+    for raw in raw_events:
         event = normalize_event(raw)
-        producer.send(settings.KAFKA_TOPIC, value=event)
-        print(
-            f"Published event: "
-            f"session={event['session_key']} "
-            f"driver={event['driver_number']} "
-            f"speed={event['speed']}"
+
+        producer.send(
+            settings.KAFKA_TOPIC,
+            value=event,
         )
-        time.sleep(0.25)
+
+        print(
+            f"Published: "
+            f"driver={event['driver_number']} "
+            f"speed={event['speed']} "
+            f"rpm={event['rpm']} "
+            f"gear={event['gear']}"
+        )
+
+        time.sleep(0.15)
 
     producer.flush()
     producer.close()

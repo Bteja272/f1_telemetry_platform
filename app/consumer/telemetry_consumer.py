@@ -2,6 +2,7 @@ import json
 from datetime import datetime
 
 from kafka import KafkaConsumer
+from sqlalchemy.exc import IntegrityError
 
 from app.cache.redis_client import redis_client
 from app.core.config import settings
@@ -13,8 +14,6 @@ def parse_datetime(value: str):
     if not value:
         return None
 
-    # OpenF1 timestamps usually end with +00:00.
-    # This also handles Z-style UTC timestamps.
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
@@ -22,9 +21,9 @@ def create_consumer():
     return KafkaConsumer(
         settings.KAFKA_TOPIC,
         bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-        auto_offset_reset="earliest",
+        auto_offset_reset="latest",
         enable_auto_commit=True,
-        group_id="f1-telemetry-consumer-v3",
+        group_id="f1-telemetry-consumer-v4",
         value_deserializer=lambda value: json.loads(value.decode("utf-8")),
     )
 
@@ -51,6 +50,10 @@ def save_to_database(event: dict):
         db.commit()
         print("Saved to TimescaleDB")
 
+    except IntegrityError:
+        db.rollback()
+        print("Duplicate telemetry event skipped")
+
     except Exception as e:
         db.rollback()
         print("DB insert failed:", e)
@@ -65,19 +68,24 @@ def update_redis_cache(event: dict):
     redis_client.hset(
         redis_key,
         mapping={
-            "speed": event.get("speed"),
-            "rpm": event.get("rpm"),
-            "gear": event.get("gear"),
-            "throttle": event.get("throttle"),
-            "brake": event.get("brake"),
-            "drs": event.get("drs"),
-            "event_time": event.get("event_time"),
-            "session_key": event.get("session_key"),
-            "meeting_key": event.get("meeting_key"),
+            "speed": event.get("speed", 0),
+            "rpm": event.get("rpm", 0),
+            "gear": event.get("gear", 0),
+            "throttle": event.get("throttle", 0),
+            "brake": event.get("brake", 0),
+            "drs": event.get("drs", 0),
+            "event_time": event.get("event_time", ""),
+            "session_key": event.get("session_key", ""),
+            "meeting_key": event.get("meeting_key", ""),
         },
     )
 
-    print("Updated Redis cache")
+    print(
+        f"Updated Redis cache: "
+        f"driver={event.get('driver_number')} "
+        f"speed={event.get('speed')} "
+        f"rpm={event.get('rpm')}"
+    )
 
 
 def consume_events():
@@ -93,7 +101,8 @@ def consume_events():
         print(
             f"Consumed telemetry: "
             f"driver={event.get('driver_number')} "
-            f"speed={event.get('speed')}"
+            f"speed={event.get('speed')} "
+            f"rpm={event.get('rpm')}"
         )
 
         save_to_database(event)
