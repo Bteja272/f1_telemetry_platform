@@ -1,0 +1,161 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, Arial, sans-serif;
+  background: #0f1117;
+  color: #f4f4f5;
+}
+
+.dashboard {
+  min-height: 100vh;
+  padding: 32px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 32px;
+}
+
+.eyebrow {
+  color: #ef4444;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 42px;
+}
+
+.subtitle {
+  max-width: 760px;
+  color: #a1a1aa;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.status {
+  padding: 10px 16px;
+  border-radius: 999px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.online {
+  background: rgba(34, 197, 94, 0.16);
+  color: #4ade80;
+  border: 1px solid rgba(74, 222, 128, 0.4);
+}
+
+.offline {
+  background: rgba(239, 68, 68, 0.16);
+  color: #f87171;
+  border: 1px solid rgba(248, 113, 113, 0.4);
+}
+
+.driver-panel {
+  display: grid;
+  grid-template-columns: 1fr 1fr 2fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.driver-panel > div,
+.metric-card,
+.chart-card {
+  background: #181b24;
+  border: 1px solid #272b38;
+  border-radius: 18px;
+  padding: 20px;
+}
+
+.label,
+.metric-title,
+.chart-note {
+  margin: 0;
+  color: #a1a1aa;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.driver-panel h2,
+.metric-card h2,
+.chart-card h2 {
+  margin: 8px 0 0;
+}
+
+.small-text {
+  font-size: 16px;
+  color: #e4e4e7;
+  word-break: break-word;
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.metric-card h2 {
+  font-size: 30px;
+}
+
+.metric-card span {
+  font-size: 14px;
+  color: #a1a1aa;
+}
+
+.chart-card {
+  padding: 24px;
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.chart-container {
+  background: #10131a;
+  border-radius: 14px;
+  padding: 12px;
+}
+
+@media (max-width: 1100px) {
+  .metrics-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .driver-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .header {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 700px) {
+  .dashboard {
+    padding: 20px;
+  }
+
+  h1 {
+    font-size: 32px;
+  }
+
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+}
