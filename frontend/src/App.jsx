@@ -10,8 +10,11 @@ import {
 } from "recharts";
 import "./index.css";
 
-const WS_URL = "ws://127.0.0.1:8000/ws/telemetry/1";
-const METRICS_URL = "http://127.0.0.1:8000/metrics/system";
+const API_BASE =
+  import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+
+const WS_BASE =
+  import.meta.env.VITE_WS_BASE_URL || "ws://127.0.0.1:8000";
 
 function MetricCard({ title, value, unit }) {
   return (
@@ -31,7 +34,7 @@ function App() {
   const [metrics, setMetrics] = useState(null);
 
   useEffect(() => {
-    const socket = new WebSocket(WS_URL);
+    const socket = new WebSocket(`${WS_BASE}/ws/telemetry/1`);
 
     socket.onopen = () => {
       setConnected(true);
@@ -78,7 +81,7 @@ function App() {
   useEffect(() => {
     const fetchMetrics = async () => {
       try {
-        const response = await fetch(METRICS_URL);
+        const response = await fetch(`${API_BASE}/metrics/system`);
         const data = await response.json();
         setMetrics(data);
       } catch (error) {
