@@ -20,6 +20,7 @@ function MetricCard({ title, value, unit }) {
   return (
     <div className="metric-card">
       <p className="metric-title">{title}</p>
+
       <h2>
         {value ?? "--"} <span>{unit}</span>
       </h2>
@@ -37,39 +38,46 @@ function App() {
     const socket = new WebSocket(`${WS_BASE}/ws/telemetry/1`);
 
     socket.onopen = () => {
+      console.log("WebSocket connected");
       setConnected(true);
     };
 
     socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
+      try {
+        const data = JSON.parse(event.data);
 
-      if (!data || data.message) {
-        return;
+        if (!data || data.message) {
+          return;
+        }
+
+        setTelemetry(data);
+
+        setChartData((prev) => {
+          const next = [
+            ...prev,
+            {
+              time: new Date().toLocaleTimeString(),
+              speed: data.speed,
+              rpm: data.rpm,
+              throttle: data.throttle,
+              brake: data.brake,
+            },
+          ];
+
+          return next.slice(-30);
+        });
+      } catch (error) {
+        console.error("WebSocket parse error:", error);
       }
-
-      setTelemetry(data);
-
-      setChartData((prev) => {
-        const next = [
-          ...prev,
-          {
-            time: new Date().toLocaleTimeString(),
-            speed: data.speed,
-            rpm: data.rpm,
-            throttle: data.throttle,
-            brake: data.brake,
-          },
-        ];
-
-        return next.slice(-30);
-      });
     };
 
     socket.onclose = () => {
+      console.log("WebSocket disconnected");
       setConnected(false);
     };
 
-    socket.onerror = () => {
+    socket.onerror = (error) => {
+      console.error("WebSocket error:", error);
       setConnected(false);
     };
 
@@ -82,10 +90,15 @@ function App() {
     const fetchMetrics = async () => {
       try {
         const response = await fetch(`${API_BASE}/metrics/system`);
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch metrics");
+        }
+
         const data = await response.json();
         setMetrics(data);
       } catch (error) {
-        console.error("Failed to fetch metrics", error);
+        console.error("Failed to fetch metrics:", error);
       }
     };
 
@@ -101,7 +114,9 @@ function App() {
       <section className="header">
         <div>
           <p className="eyebrow">F1 Telemetry Platform</p>
+
           <h1>Real-Time Driver Telemetry</h1>
+
           <p className="subtitle">
             Streaming Formula 1 telemetry through Kafka, Redis, FastAPI
             WebSockets, and TimescaleDB.
@@ -126,7 +141,9 @@ function App() {
 
         <div>
           <p className="label">Last Event</p>
-          <h2 className="small-text">{telemetry?.event_time ?? "--"}</h2>
+          <h2 className="small-text">
+            {telemetry?.event_time ?? "--"}
+          </h2>
         </div>
       </section>
 
@@ -145,16 +162,19 @@ function App() {
           value={metrics?.total_telemetry_events}
           unit=""
         />
+
         <MetricCard
           title="Active Drivers"
           value={metrics?.active_cached_drivers}
           unit=""
         />
+
         <MetricCard
           title="DB Latency"
           value={metrics?.timescaledb_query_latency_ms}
           unit="ms"
         />
+
         <MetricCard
           title="Redis Latency"
           value={metrics?.redis_query_latency_ms}
@@ -168,16 +188,23 @@ function App() {
             <p className="label">Live Chart</p>
             <h2>Speed Trace</h2>
           </div>
-          <p className="chart-note">Last 30 WebSocket updates</p>
+
+          <p className="chart-note">
+            Last 30 WebSocket updates
+          </p>
         </div>
 
         <div className="chart-container">
           <ResponsiveContainer width="100%" height={320}>
             <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" />
+
               <XAxis dataKey="time" hide />
+
               <YAxis />
+
               <Tooltip />
+
               <Line
                 type="monotone"
                 dataKey="speed"
