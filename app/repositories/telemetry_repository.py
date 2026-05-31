@@ -1,5 +1,7 @@
 from sqlalchemy.orm import Session
 
+from app.db.models import DriverMetadata
+from app.db.models import SessionMetadata
 from app.db.models import TelemetryEvent
 
 
@@ -38,12 +40,8 @@ class TelemetryRepository:
 
     def get_available_sessions(self, db: Session):
         return (
-            db.query(
-                TelemetryEvent.session_key,
-                TelemetryEvent.meeting_key,
-            )
-            .distinct()
-            .order_by(TelemetryEvent.session_key.desc())
+            db.query(SessionMetadata)
+            .order_by(SessionMetadata.date_start.desc())
             .all()
         )
 
@@ -53,12 +51,9 @@ class TelemetryRepository:
         session_key: int,
     ):
         return (
-            db.query(TelemetryEvent.driver_number)
-            .filter(
-                TelemetryEvent.session_key == session_key
-            )
-            .distinct()
-            .order_by(TelemetryEvent.driver_number)
+            db.query(DriverMetadata)
+            .filter(DriverMetadata.session_key == session_key)
+            .order_by(DriverMetadata.driver_number)
             .all()
         )
 

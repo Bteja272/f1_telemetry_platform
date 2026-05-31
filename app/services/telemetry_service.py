@@ -65,6 +65,13 @@ class TelemetryService:
             {
                 "session_key": row.session_key,
                 "meeting_key": row.meeting_key,
+                "session_name": row.session_name,
+                "session_type": row.session_type,
+                "location": row.location,
+                "country_name": row.country_name,
+                "circuit_short_name": row.circuit_short_name,
+                "date_start": row.date_start,
+                "year": row.year,
             }
             for row in rows
         ]
@@ -79,7 +86,19 @@ class TelemetryService:
             session_key=session_key,
         )
 
-        return [row.driver_number for row in rows]
+        return [
+            {
+                "driver_number": row.driver_number,
+                "full_name": row.full_name,
+                "broadcast_name": row.broadcast_name,
+                "name_acronym": row.name_acronym,
+                "team_name": row.team_name,
+                "team_colour": row.team_colour,
+                "country_code": row.country_code,
+                "headshot_url": row.headshot_url,
+            }
+            for row in rows
+        ]
 
     def get_metrics(self, db: Session):
         total_events = self.repository.count_events(db)

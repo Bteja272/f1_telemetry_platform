@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   LineChart,
   Line,
@@ -20,12 +20,28 @@ function MetricCard({ title, value, unit }) {
   return (
     <div className="metric-card">
       <p className="metric-title">{title}</p>
-
       <h2>
         {value ?? "--"} <span>{unit}</span>
       </h2>
     </div>
   );
+}
+
+function formatSessionLabel(session) {
+  if (!session) return "Select Session";
+
+  const date = session.date_start
+    ? new Date(session.date_start).toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "Date unavailable";
+
+  const location = session.location || "Unknown Location";
+  const circuit = session.circuit_short_name || "Unknown Circuit";
+
+  return `${location} · ${circuit} · ${date}`;
 }
 
 function App() {
@@ -39,6 +55,18 @@ function App() {
   const [chartData, setChartData] = useState([]);
   const [connected, setConnected] = useState(false);
   const [metrics, setMetrics] = useState(null);
+
+  const selectedSessionData = useMemo(() => {
+    return sessions.find(
+      (session) => String(session.session_key) === String(selectedSession)
+    );
+  }, [sessions, selectedSession]);
+
+  const selectedDriverData = useMemo(() => {
+    return drivers.find(
+      (driver) => String(driver.driver_number) === String(selectedDriver)
+    );
+  }, [drivers, selectedDriver]);
 
   useEffect(() => {
     const fetchSessions = async () => {
@@ -66,9 +94,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!selectedSession) {
-      return;
-    }
+    if (!selectedSession) return;
 
     const fetchDrivers = async () => {
       try {
@@ -86,7 +112,7 @@ function App() {
         setDrivers(availableDrivers);
 
         if (availableDrivers.length > 0) {
-          setSelectedDriver(String(availableDrivers[0]));
+          setSelectedDriver(String(availableDrivers[0].driver_number));
         }
       } catch (error) {
         console.error("Failed to fetch drivers:", error);
@@ -97,9 +123,7 @@ function App() {
   }, [selectedSession]);
 
   useEffect(() => {
-    if (!selectedSession || !selectedDriver) {
-      return;
-    }
+    if (!selectedSession || !selectedDriver) return;
 
     const fetchHistory = async () => {
       try {
@@ -133,9 +157,7 @@ function App() {
   }, [selectedSession, selectedDriver]);
 
   useEffect(() => {
-    if (!selectedDriver) {
-      return;
-    }
+    if (!selectedDriver) return;
 
     setTelemetry(null);
     setChartData([]);
@@ -152,9 +174,7 @@ function App() {
       try {
         const data = JSON.parse(event.data);
 
-        if (!data || data.message) {
-          return;
-        }
+        if (!data || data.message) return;
 
         setTelemetry(data);
 
@@ -209,7 +229,6 @@ function App() {
     };
 
     fetchMetrics();
-
     const interval = setInterval(fetchMetrics, 5000);
 
     return () => clearInterval(interval);
@@ -220,9 +239,7 @@ function App() {
       <section className="header">
         <div>
           <p className="eyebrow">F1 Telemetry Platform</p>
-
           <h1>Real-Time Driver Telemetry</h1>
-
           <p className="subtitle">
             Streaming Formula 1 telemetry through Kafka, Redis, FastAPI
             WebSockets, and TimescaleDB.
@@ -249,7 +266,7 @@ function App() {
           >
             {sessions.map((session) => (
               <option key={session.session_key} value={session.session_key}>
-                Session {session.session_key} · Meeting {session.meeting_key}
+                {formatSessionLabel(session)}
               </option>
             ))}
           </select>
@@ -266,18 +283,59 @@ function App() {
             }}
           >
             {drivers.map((driver) => (
-              <option key={driver} value={driver}>
-                Driver #{driver}
+              <option key={driver.driver_number} value={driver.driver_number}>
+                {driver.name_acronym || "DRV"} · {driver.full_name} ·{" "}
+                {driver.team_name}
               </option>
             ))}
           </select>
         </div>
       </section>
 
+      <section className="driver-profile-card">
+        <div className="driver-image-wrapper">
+          {selectedDriverData?.headshot_url ? (
+            <img
+              src={selectedDriverData.headshot_url}
+              alt={selectedDriverData.full_name || "Driver headshot"}
+              className="driver-headshot"
+            />
+          ) : (
+            <div className="driver-placeholder">
+              {selectedDriverData?.name_acronym || "DRV"}
+            </div>
+          )}
+        </div>
+
+        <div>
+          <p className="label">Selected Driver</p>
+          <h2>
+            {selectedDriverData?.name_acronym || "DRV"} ·{" "}
+            {selectedDriverData?.full_name || `Driver #${selectedDriver}`}
+          </h2>
+          <p className="driver-meta">
+            {selectedDriverData?.team_name || "Team unavailable"}
+          </p>
+        </div>
+
+        <div>
+          <p className="label">Selected Race</p>
+          <h2>{selectedSessionData?.location || "Race unavailable"}</h2>
+          <p className="driver-meta">
+            {selectedSessionData?.circuit_short_name || "Circuit unavailable"} ·{" "}
+            {selectedSessionData?.country_name || "Country unavailable"}
+          </p>
+        </div>
+      </section>
+
       <section className="driver-panel">
         <div>
           <p className="label">Driver</p>
-          <h2>#{telemetry?.driver_number ?? selectedDriver ?? "--"}</h2>
+          <h2>
+            {selectedDriverData?.name_acronym
+              ? `${selectedDriverData.name_acronym} #${selectedDriver}`
+              : `#${telemetry?.driver_number ?? selectedDriver ?? "--"}`}
+          </h2>
         </div>
 
         <div>
@@ -306,19 +364,16 @@ function App() {
           value={metrics?.total_telemetry_events}
           unit=""
         />
-
         <MetricCard
           title="Active Drivers"
           value={metrics?.active_cached_drivers}
           unit=""
         />
-
         <MetricCard
           title="DB Latency"
           value={metrics?.timescaledb_query_latency_ms}
           unit="ms"
         />
-
         <MetricCard
           title="Redis Latency"
           value={metrics?.redis_query_latency_ms}
@@ -332,7 +387,6 @@ function App() {
             <p className="label">Live Chart</p>
             <h2>Live Speed Trace</h2>
           </div>
-
           <p className="chart-note">Last 30 WebSocket updates</p>
         </div>
 
@@ -360,7 +414,6 @@ function App() {
             <p className="label">Historical Chart</p>
             <h2>Session History Speed Trace</h2>
           </div>
-
           <p className="chart-note">Latest 30 stored events</p>
         </div>
 

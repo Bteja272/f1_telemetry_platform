@@ -4,11 +4,15 @@ from datetime import datetime, timezone
 
 import requests
 from kafka import KafkaProducer
+from sqlalchemy.dialects.postgresql import insert
 
 from app.core.config import settings
+from app.db.database import SessionLocal
+from app.db.models import DriverMetadata
+from app.db.models import SessionMetadata
 
 
-MAX_DRIVERS = 8
+MAX_DRIVERS = None
 EVENTS_PER_DRIVER = 40
 MIN_SPEED = 100
 
@@ -18,6 +22,13 @@ def create_kafka_producer() -> KafkaProducer:
         bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
         value_serializer=lambda value: json.dumps(value).encode("utf-8"),
     )
+
+
+def parse_datetime(value: str | None):
+    if not value:
+        return None
+
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
 def fetch_json(endpoint: str, params: dict | None = None) -> list[dict]:
@@ -38,7 +49,113 @@ def fetch_json(endpoint: str, params: dict | None = None) -> list[dict]:
     return response.json()
 
 
-def get_recent_race_session() -> int:
+def save_session_metadata(session: dict):
+    db = SessionLocal()
+
+    try:
+        statement = insert(SessionMetadata).values(
+            session_key=session.get("session_key"),
+            meeting_key=session.get("meeting_key"),
+            session_name=session.get("session_name"),
+            session_type=session.get("session_type"),
+            date_start=parse_datetime(session.get("date_start")),
+            date_end=parse_datetime(session.get("date_end")),
+            location=session.get("location"),
+            country_name=session.get("country_name"),
+            circuit_short_name=session.get("circuit_short_name"),
+            year=parse_datetime(session.get("date_start")).year
+            if session.get("date_start")
+            else None,
+        )
+
+        update_values = {
+            "meeting_key": statement.excluded.meeting_key,
+            "session_name": statement.excluded.session_name,
+            "session_type": statement.excluded.session_type,
+            "date_start": statement.excluded.date_start,
+            "date_end": statement.excluded.date_end,
+            "location": statement.excluded.location,
+            "country_name": statement.excluded.country_name,
+            "circuit_short_name": statement.excluded.circuit_short_name,
+            "year": statement.excluded.year,
+        }
+
+        statement = statement.on_conflict_do_update(
+            index_elements=["session_key"],
+            set_=update_values,
+        )
+
+        db.execute(statement)
+        db.commit()
+
+        print(
+            f"Saved session metadata: "
+            f"{session.get('location')} - {session.get('date_start')}"
+        )
+
+    except Exception as error:
+        db.rollback()
+        print("Failed to save session metadata:", error)
+
+    finally:
+        db.close()
+
+
+def save_driver_metadata(
+    session_key: int,
+    driver: dict,
+):
+    db = SessionLocal()
+
+    try:
+        statement = insert(DriverMetadata).values(
+            driver_number=driver.get("driver_number"),
+            session_key=session_key,
+            full_name=driver.get("full_name"),
+            broadcast_name=driver.get("broadcast_name"),
+            name_acronym=driver.get("name_acronym"),
+            team_name=driver.get("team_name"),
+            team_colour=driver.get("team_colour"),
+            first_name=driver.get("first_name"),
+            last_name=driver.get("last_name"),
+            country_code=driver.get("country_code"),
+            headshot_url=driver.get("headshot_url"),
+        )
+
+        update_values = {
+            "full_name": statement.excluded.full_name,
+            "broadcast_name": statement.excluded.broadcast_name,
+            "name_acronym": statement.excluded.name_acronym,
+            "team_name": statement.excluded.team_name,
+            "team_colour": statement.excluded.team_colour,
+            "first_name": statement.excluded.first_name,
+            "last_name": statement.excluded.last_name,
+            "country_code": statement.excluded.country_code,
+            "headshot_url": statement.excluded.headshot_url,
+        }
+
+        statement = statement.on_conflict_do_update(
+            index_elements=["driver_number", "session_key"],
+            set_=update_values,
+        )
+
+        db.execute(statement)
+        db.commit()
+
+        print(
+            f"Saved driver metadata: "
+            f"{driver.get('name_acronym')} - {driver.get('full_name')}"
+        )
+
+    except Exception as error:
+        db.rollback()
+        print("Failed to save driver metadata:", error)
+
+    finally:
+        db.close()
+
+
+def get_recent_race_session() -> dict:
     sessions = fetch_json(
         "sessions",
         params={
@@ -57,18 +174,20 @@ def get_recent_race_session() -> int:
     )
 
     selected_session = sessions[0]
-    session_key = selected_session["session_key"]
 
     print(
-        f"Selected session_key={session_key}, "
+        f"Selected session_key={selected_session.get('session_key')}, "
         f"location={selected_session.get('location')}, "
-        f"country={selected_session.get('country_name')}"
+        f"country={selected_session.get('country_name')}, "
+        f"date={selected_session.get('date_start')}"
     )
 
-    return session_key
+    save_session_metadata(selected_session)
+
+    return selected_session
 
 
-def get_drivers_for_session(session_key: int) -> list[int]:
+def get_drivers_for_session(session_key: int) -> list[dict]:
     drivers = fetch_json(
         "drivers",
         params={"session_key": session_key},
@@ -77,16 +196,35 @@ def get_drivers_for_session(session_key: int) -> list[int]:
     if not drivers:
         raise RuntimeError(f"No drivers found for session_key={session_key}")
 
-    driver_numbers = [
-        driver["driver_number"]
+    valid_drivers = [
+        driver
         for driver in drivers
         if driver.get("driver_number") is not None
     ]
 
-    print(f"Found {len(driver_numbers)} drivers for session {session_key}")
-    print(f"Using drivers: {driver_numbers[:MAX_DRIVERS]}")
+    selected_drivers = valid_drivers if MAX_DRIVERS is None else valid_drivers[:MAX_DRIVERS]
 
-    return driver_numbers[:MAX_DRIVERS]
+    for driver in selected_drivers:
+        save_driver_metadata(
+            session_key=session_key,
+            driver=driver,
+        )
+    
+    print(json.dumps(selected_drivers, indent=2))
+    print(f"Found {len(valid_drivers)} drivers for session {session_key}")
+    print(
+        "Using drivers:",
+        [
+            {
+                "driver_number": driver.get("driver_number"),
+                "name": driver.get("full_name"),
+                "team": driver.get("team_name"),
+            }
+            for driver in selected_drivers
+        ],
+    )
+
+    return selected_drivers
 
 
 def fetch_driver_car_data(
@@ -136,12 +274,16 @@ def normalize_event(raw: dict) -> dict:
 def publish_events():
     producer = create_kafka_producer()
 
-    session_key = get_recent_race_session()
-    driver_numbers = get_drivers_for_session(session_key)
+    session = get_recent_race_session()
+    session_key = session["session_key"]
+
+    drivers = get_drivers_for_session(session_key)
 
     total_published = 0
 
-    for driver_number in driver_numbers:
+    for driver in drivers:
+        driver_number = driver["driver_number"]
+
         raw_events = fetch_driver_car_data(
             session_key=session_key,
             driver_number=driver_number,
@@ -149,7 +291,7 @@ def publish_events():
 
         print(
             f"Fetched {len(raw_events)} moving telemetry events "
-            f"for driver={driver_number}"
+            f"for driver={driver_number} ({driver.get('full_name')})"
         )
 
         for raw in raw_events:
