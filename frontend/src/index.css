@@ -159,3 +159,34 @@ h1 {
     grid-template-columns: 1fr;
   }
 }
+
+.control-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.control-panel > div {
+  background: #181b24;
+  border: 1px solid #272b38;
+  border-radius: 18px;
+  padding: 20px;
+}
+
+select {
+  width: 100%;
+  margin-top: 10px;
+  background: #10131a;
+  color: #f4f4f5;
+  border: 1px solid #272b38;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 15px;
+}
+
+@media (max-width: 700px) {
+  .control-panel {
+    grid-template-columns: 1fr;
+  }
+}

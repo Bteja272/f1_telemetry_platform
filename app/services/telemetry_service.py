@@ -40,6 +40,57 @@ class TelemetryService:
             limit=limit,
         )
 
+        return self._format_telemetry_rows(rows)
+
+    def get_driver_history_by_session(
+        self,
+        db: Session,
+        driver_number: int,
+        session_key: int,
+        limit: int = 100,
+    ):
+        rows = self.repository.get_driver_history_by_session(
+            db=db,
+            driver_number=driver_number,
+            session_key=session_key,
+            limit=limit,
+        )
+
+        return self._format_telemetry_rows(rows)
+
+    def get_available_sessions(self, db: Session):
+        rows = self.repository.get_available_sessions(db)
+
+        return [
+            {
+                "session_key": row.session_key,
+                "meeting_key": row.meeting_key,
+            }
+            for row in rows
+        ]
+
+    def get_drivers_by_session(
+        self,
+        db: Session,
+        session_key: int,
+    ):
+        rows = self.repository.get_drivers_by_session(
+            db=db,
+            session_key=session_key,
+        )
+
+        return [row.driver_number for row in rows]
+
+    def get_metrics(self, db: Session):
+        total_events = self.repository.count_events(db)
+        distinct_drivers = self.repository.count_distinct_drivers(db)
+
+        return {
+            "total_telemetry_events": total_events,
+            "distinct_drivers": distinct_drivers,
+        }
+
+    def _format_telemetry_rows(self, rows):
         return [
             {
                 "driver_number": row.driver_number,
@@ -55,12 +106,3 @@ class TelemetryService:
             }
             for row in rows
         ]
-
-    def get_metrics(self, db: Session):
-        total_events = self.repository.count_events(db)
-        distinct_drivers = self.repository.count_distinct_drivers(db)
-
-        return {
-            "total_telemetry_events": total_events,
-            "distinct_drivers": distinct_drivers,
-        }

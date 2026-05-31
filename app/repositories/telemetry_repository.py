@@ -18,6 +18,50 @@ class TelemetryRepository:
             .all()
         )
 
+    def get_driver_history_by_session(
+        self,
+        db: Session,
+        driver_number: int,
+        session_key: int,
+        limit: int = 100,
+    ):
+        return (
+            db.query(TelemetryEvent)
+            .filter(
+                TelemetryEvent.driver_number == driver_number,
+                TelemetryEvent.session_key == session_key,
+            )
+            .order_by(TelemetryEvent.event_time.desc())
+            .limit(limit)
+            .all()
+        )
+
+    def get_available_sessions(self, db: Session):
+        return (
+            db.query(
+                TelemetryEvent.session_key,
+                TelemetryEvent.meeting_key,
+            )
+            .distinct()
+            .order_by(TelemetryEvent.session_key.desc())
+            .all()
+        )
+
+    def get_drivers_by_session(
+        self,
+        db: Session,
+        session_key: int,
+    ):
+        return (
+            db.query(TelemetryEvent.driver_number)
+            .filter(
+                TelemetryEvent.session_key == session_key
+            )
+            .distinct()
+            .order_by(TelemetryEvent.driver_number)
+            .all()
+        )
+
     def count_events(self, db: Session):
         return db.query(TelemetryEvent).count()
 

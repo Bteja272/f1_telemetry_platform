@@ -29,13 +29,119 @@ function MetricCard({ title, value, unit }) {
 }
 
 function App() {
+  const [sessions, setSessions] = useState([]);
+  const [drivers, setDrivers] = useState([]);
+  const [selectedSession, setSelectedSession] = useState("");
+  const [selectedDriver, setSelectedDriver] = useState("");
+
   const [telemetry, setTelemetry] = useState(null);
+  const [historyData, setHistoryData] = useState([]);
   const [chartData, setChartData] = useState([]);
   const [connected, setConnected] = useState(false);
   const [metrics, setMetrics] = useState(null);
 
   useEffect(() => {
-    const socket = new WebSocket(`${WS_BASE}/ws/telemetry/1`);
+    const fetchSessions = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/sessions`);
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch sessions");
+        }
+
+        const data = await response.json();
+        const availableSessions = data.sessions || [];
+
+        setSessions(availableSessions);
+
+        if (availableSessions.length > 0) {
+          setSelectedSession(String(availableSessions[0].session_key));
+        }
+      } catch (error) {
+        console.error("Failed to fetch sessions:", error);
+      }
+    };
+
+    fetchSessions();
+  }, []);
+
+  useEffect(() => {
+    if (!selectedSession) {
+      return;
+    }
+
+    const fetchDrivers = async () => {
+      try {
+        const response = await fetch(
+          `${API_BASE}/sessions/${selectedSession}/drivers`
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch drivers");
+        }
+
+        const data = await response.json();
+        const availableDrivers = data.drivers || [];
+
+        setDrivers(availableDrivers);
+
+        if (availableDrivers.length > 0) {
+          setSelectedDriver(String(availableDrivers[0]));
+        }
+      } catch (error) {
+        console.error("Failed to fetch drivers:", error);
+      }
+    };
+
+    fetchDrivers();
+  }, [selectedSession]);
+
+  useEffect(() => {
+    if (!selectedSession || !selectedDriver) {
+      return;
+    }
+
+    const fetchHistory = async () => {
+      try {
+        const response = await fetch(
+          `${API_BASE}/sessions/${selectedSession}/drivers/${selectedDriver}/history?limit=30`
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch driver history");
+        }
+
+        const data = await response.json();
+
+        const formattedHistory = [...(data.telemetry || [])]
+          .reverse()
+          .map((event) => ({
+            time: new Date(event.event_time).toLocaleTimeString(),
+            speed: event.speed,
+            rpm: event.rpm,
+            throttle: event.throttle,
+            brake: event.brake,
+          }));
+
+        setHistoryData(formattedHistory);
+      } catch (error) {
+        console.error("Failed to fetch history:", error);
+      }
+    };
+
+    fetchHistory();
+  }, [selectedSession, selectedDriver]);
+
+  useEffect(() => {
+    if (!selectedDriver) {
+      return;
+    }
+
+    setTelemetry(null);
+    setChartData([]);
+    setConnected(false);
+
+    const socket = new WebSocket(`${WS_BASE}/ws/telemetry/${selectedDriver}`);
 
     socket.onopen = () => {
       console.log("WebSocket connected");
@@ -84,7 +190,7 @@ function App() {
     return () => {
       socket.close();
     };
-  }, []);
+  }, [selectedDriver]);
 
   useEffect(() => {
     const fetchMetrics = async () => {
@@ -128,22 +234,60 @@ function App() {
         </div>
       </section>
 
+      <section className="control-panel">
+        <div>
+          <p className="label">Race / Session</p>
+          <select
+            value={selectedSession}
+            onChange={(event) => {
+              setSelectedSession(event.target.value);
+              setSelectedDriver("");
+              setTelemetry(null);
+              setChartData([]);
+              setHistoryData([]);
+            }}
+          >
+            {sessions.map((session) => (
+              <option key={session.session_key} value={session.session_key}>
+                Session {session.session_key} · Meeting {session.meeting_key}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <p className="label">Driver</p>
+          <select
+            value={selectedDriver}
+            onChange={(event) => {
+              setSelectedDriver(event.target.value);
+              setTelemetry(null);
+              setChartData([]);
+            }}
+          >
+            {drivers.map((driver) => (
+              <option key={driver} value={driver}>
+                Driver #{driver}
+              </option>
+            ))}
+          </select>
+        </div>
+      </section>
+
       <section className="driver-panel">
         <div>
           <p className="label">Driver</p>
-          <h2>#{telemetry?.driver_number ?? 1}</h2>
+          <h2>#{telemetry?.driver_number ?? selectedDriver ?? "--"}</h2>
         </div>
 
         <div>
           <p className="label">Session</p>
-          <h2>{telemetry?.session_key ?? "--"}</h2>
+          <h2>{telemetry?.session_key ?? selectedSession ?? "--"}</h2>
         </div>
 
         <div>
           <p className="label">Last Event</p>
-          <h2 className="small-text">
-            {telemetry?.event_time ?? "--"}
-          </h2>
+          <h2 className="small-text">{telemetry?.event_time ?? "--"}</h2>
         </div>
       </section>
 
@@ -186,25 +330,47 @@ function App() {
         <div className="chart-header">
           <div>
             <p className="label">Live Chart</p>
-            <h2>Speed Trace</h2>
+            <h2>Live Speed Trace</h2>
           </div>
 
-          <p className="chart-note">
-            Last 30 WebSocket updates
-          </p>
+          <p className="chart-note">Last 30 WebSocket updates</p>
         </div>
 
         <div className="chart-container">
           <ResponsiveContainer width="100%" height={320}>
             <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" />
-
               <XAxis dataKey="time" hide />
-
               <YAxis />
-
               <Tooltip />
+              <Line
+                type="monotone"
+                dataKey="speed"
+                strokeWidth={3}
+                dot={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
 
+      <section className="chart-card">
+        <div className="chart-header">
+          <div>
+            <p className="label">Historical Chart</p>
+            <h2>Session History Speed Trace</h2>
+          </div>
+
+          <p className="chart-note">Latest 30 stored events</p>
+        </div>
+
+        <div className="chart-container">
+          <ResponsiveContainer width="100%" height={320}>
+            <LineChart data={historyData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="time" hide />
+              <YAxis />
+              <Tooltip />
               <Line
                 type="monotone"
                 dataKey="speed"
