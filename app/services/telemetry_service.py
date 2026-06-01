@@ -125,3 +125,27 @@ class TelemetryService:
             }
             for row in rows
         ]
+    def get_session_locations(
+        self,
+        db: Session,
+        session_key: int,
+        limit: int = 1000,
+    ):
+        rows = self.repository.get_session_locations(
+            db=db,
+            session_key=session_key,
+            limit=limit,
+        )
+
+        return [
+            {
+                "driver_number": row.driver_number,
+                "session_key": row.session_key,
+                "meeting_key": row.meeting_key,
+                "x": row.x,
+                "y": row.y,
+                "z": row.z,
+                "event_time": row.event_time,
+            }
+            for row in rows
+        ]

@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.db.models import DriverMetadata
 from app.db.models import SessionMetadata
 from app.db.models import TelemetryEvent
+from app.db.models import LocationEvent
 
 
 class TelemetryRepository:
@@ -65,4 +66,22 @@ class TelemetryRepository:
             db.query(TelemetryEvent.driver_number)
             .distinct()
             .count()
+        )
+    
+    def get_session_locations(
+        self,
+        db: Session,
+        session_key: int,
+        limit: int = 1000,
+    ):
+        return (
+            db.query(LocationEvent)
+            .filter(
+                LocationEvent.session_key == session_key,
+                LocationEvent.x != 0,
+                LocationEvent.y != 0,
+            )
+            .order_by(LocationEvent.event_time.asc())
+            .limit(limit)
+            .all()
         )

@@ -30,6 +30,18 @@ def initialize_database():
             )
         )
 
+        connection.execute(
+            text(
+                """
+                SELECT create_hypertable(
+                    'location_events',
+                    'event_time',
+                    if_not_exists => TRUE
+                );
+                """
+            )
+        )
+
         connection.commit()
 
     print("TimescaleDB initialized successfully")

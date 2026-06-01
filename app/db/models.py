@@ -62,3 +62,27 @@ class DriverMetadata(Base):
     last_name = Column(String)
     country_code = Column(String)
     headshot_url = Column(String)
+
+class LocationEvent(Base):
+    __tablename__ = "location_events"
+
+    event_time = Column(
+        DateTime(timezone=True),
+        primary_key=True,
+        nullable=False,
+    )
+
+    driver_number = Column(
+        Integer,
+        primary_key=True,
+        nullable=False,
+    )
+
+    session_key = Column(Integer)
+    meeting_key = Column(Integer)
+
+    x = Column(Float)
+    y = Column(Float)
+    z = Column(Float)
+
+    ingested_at = Column(DateTime(timezone=True))

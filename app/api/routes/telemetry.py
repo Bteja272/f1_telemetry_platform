@@ -92,3 +92,21 @@ def get_driver_history_by_session(
 @router.get("/metrics")
 def get_metrics(db: Session = Depends(get_db)):
     return telemetry_service.get_metrics(db)
+
+@router.get("/sessions/{session_key}/locations")
+def get_session_locations(
+    session_key: int,
+    limit: int = Query(default=1000, ge=1, le=10000),
+    db: Session = Depends(get_db),
+):
+    locations = telemetry_service.get_session_locations(
+        db=db,
+        session_key=session_key,
+        limit=limit,
+    )
+
+    return {
+        "session_key": session_key,
+        "count": len(locations),
+        "locations": locations,
+    }

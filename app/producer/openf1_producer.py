@@ -14,6 +14,7 @@ from app.db.models import SessionMetadata
 
 MAX_DRIVERS = None
 EVENTS_PER_DRIVER = 40
+LOCATION_EVENTS_PER_DRIVER = 80
 MIN_SPEED = 100
 
 
@@ -101,10 +102,7 @@ def save_session_metadata(session: dict):
         db.close()
 
 
-def save_driver_metadata(
-    session_key: int,
-    driver: dict,
-):
+def save_driver_metadata(session_key: int, driver: dict):
     db = SessionLocal()
 
     try:
@@ -202,15 +200,18 @@ def get_drivers_for_session(session_key: int) -> list[dict]:
         if driver.get("driver_number") is not None
     ]
 
-    selected_drivers = valid_drivers if MAX_DRIVERS is None else valid_drivers[:MAX_DRIVERS]
+    selected_drivers = (
+        valid_drivers
+        if MAX_DRIVERS is None
+        else valid_drivers[:MAX_DRIVERS]
+    )
 
     for driver in selected_drivers:
         save_driver_metadata(
             session_key=session_key,
             driver=driver,
         )
-    
-    print(json.dumps(selected_drivers, indent=2))
+
     print(f"Found {len(valid_drivers)} drivers for session {session_key}")
     print(
         "Using drivers:",
@@ -243,7 +244,7 @@ def fetch_driver_car_data(
 
     except requests.exceptions.HTTPError as error:
         print(
-            f"Skipping driver={driver_number}. "
+            f"Skipping telemetry for driver={driver_number}. "
             f"OpenF1 request failed: {error}"
         )
         return []
@@ -255,8 +256,46 @@ def fetch_driver_car_data(
     return data[:EVENTS_PER_DRIVER]
 
 
-def normalize_event(raw: dict) -> dict:
+def fetch_driver_location_data(
+    session_key: int,
+    driver_number: int,
+) -> list[dict]:
+    try:
+        data = fetch_json(
+            "location",
+            params={
+                "session_key": session_key,
+                "driver_number": driver_number,
+            },
+        )
+
+    except requests.exceptions.HTTPError as error:
+        print(
+            f"Skipping location data for driver={driver_number}. "
+            f"OpenF1 request failed: {error}"
+        )
+        return []
+
+    if not data:
+        print(f"No location data found for driver={driver_number}")
+        return []
+
+    valid_locations = [
+    row for row in data
+    if row.get("x") not in (None, 0)
+    and row.get("y") not in (None, 0)
+]
+
+    if not valid_locations:
+        print(f"No non-zero location data found for driver={driver_number}")
+        return []
+
+    return valid_locations[:LOCATION_EVENTS_PER_DRIVER]
+
+
+def normalize_telemetry_event(raw: dict) -> dict:
     return {
+        "event_type": "telemetry",
         "driver_number": raw.get("driver_number"),
         "session_key": raw.get("session_key"),
         "meeting_key": raw.get("meeting_key"),
@@ -271,6 +310,20 @@ def normalize_event(raw: dict) -> dict:
     }
 
 
+def normalize_location_event(raw: dict) -> dict:
+    return {
+        "event_type": "location",
+        "driver_number": raw.get("driver_number"),
+        "session_key": raw.get("session_key"),
+        "meeting_key": raw.get("meeting_key"),
+        "x": raw.get("x"),
+        "y": raw.get("y"),
+        "z": raw.get("z"),
+        "event_time": raw.get("date"),
+        "ingested_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
 def publish_events():
     producer = create_kafka_producer()
 
@@ -279,7 +332,8 @@ def publish_events():
 
     drivers = get_drivers_for_session(session_key)
 
-    total_published = 0
+    total_telemetry_published = 0
+    total_location_published = 0
 
     for driver in drivers:
         driver_number = driver["driver_number"]
@@ -295,17 +349,17 @@ def publish_events():
         )
 
         for raw in raw_events:
-            event = normalize_event(raw)
+            event = normalize_telemetry_event(raw)
 
             producer.send(
                 settings.KAFKA_TOPIC,
                 value=event,
             )
 
-            total_published += 1
+            total_telemetry_published += 1
 
             print(
-                f"Published: "
+                f"Published telemetry: "
                 f"driver={event['driver_number']} "
                 f"speed={event['speed']} "
                 f"rpm={event['rpm']} "
@@ -314,10 +368,43 @@ def publish_events():
 
             time.sleep(0.05)
 
+        raw_locations = fetch_driver_location_data(
+            session_key=session_key,
+            driver_number=driver_number,
+        )
+
+        print(
+            f"Fetched {len(raw_locations)} location events "
+            f"for driver={driver_number} ({driver.get('full_name')})"
+        )
+
+        for raw_location in raw_locations:
+            location_event = normalize_location_event(raw_location)
+
+            producer.send(
+                settings.KAFKA_TOPIC,
+                value=location_event,
+            )
+
+            total_location_published += 1
+
+            print(
+                f"Published location: "
+                f"driver={location_event['driver_number']} "
+                f"x={location_event['x']} "
+                f"y={location_event['y']}"
+            )
+
+            time.sleep(0.02)
+
     producer.flush()
     producer.close()
 
-    print(f"Finished publishing {total_published} telemetry events")
+    print(
+        f"Finished publishing "
+        f"{total_telemetry_published} telemetry events and "
+        f"{total_location_published} location events"
+    )
 
 
 if __name__ == "__main__":
