@@ -132,34 +132,6 @@ h1 {
   padding: 12px;
 }
 
-@media (max-width: 1100px) {
-  .metrics-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-
-  .driver-panel {
-    grid-template-columns: 1fr;
-  }
-
-  .header {
-    flex-direction: column;
-  }
-}
-
-@media (max-width: 700px) {
-  .dashboard {
-    padding: 20px;
-  }
-
-  h1 {
-    font-size: 32px;
-  }
-
-  .metrics-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
 .control-panel {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -183,12 +155,6 @@ select {
   border-radius: 12px;
   padding: 12px 14px;
   font-size: 15px;
-}
-
-@media (max-width: 700px) {
-  .control-panel {
-    grid-template-columns: 1fr;
-  }
 }
 
 .driver-profile-card {
@@ -233,35 +199,53 @@ select {
   line-height: 1.5;
 }
 
-@media (max-width: 900px) {
-  .driver-profile-card {
-    grid-template-columns: 1fr;
-  }
-
-  .driver-image-wrapper {
-    width: 110px;
-    height: 110px;
-  }
-}
-
 .race-map-container {
   position: relative;
-  background: #10131a;
+  background: radial-gradient(circle at top, #172033 0%, #10131a 48%, #0f1117 100%);
+  border: 1px solid #272b38;
   border-radius: 18px;
   padding: 12px;
-  min-height: 420px;
+  min-height: 460px;
+  overflow: hidden;
 }
 
 .race-map-svg {
   width: 100%;
-  height: 420px;
+  height: 460px;
   display: block;
 }
 
 .race-map-svg rect {
-  fill: #0f1117;
+  fill: transparent;
   stroke: #272b38;
   stroke-width: 2;
+}
+
+.track-outline {
+  fill: none;
+  stroke: #1e3a5f;
+  stroke-width: 28;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.95;
+}
+
+.track-surface {
+  fill: none;
+  stroke: #38bdf8;
+  stroke-width: 18;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.9;
+}
+
+.track-centerline {
+  fill: none;
+  stroke: #e0f2fe;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.95;
 }
 
 .driver-dot {
@@ -273,19 +257,22 @@ select {
 }
 
 .driver-dot.selected {
-  fill: #ef4444;
-  stroke: #fca5a5;
+  stroke: #ffffff;
   stroke-width: 3;
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.55));
 }
 
 .driver-dot:hover {
-  fill: #f97316;
+  transform: scale(1.08);
 }
 
 .driver-dot-label {
-  fill: #f4f4f5;
+  fill: #f8fafc;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
+  paint-order: stroke;
+  stroke: #020617;
+  stroke-width: 3px;
   pointer-events: none;
 }
 
@@ -300,7 +287,7 @@ select {
   display: grid;
   gap: 4px;
   color: #f4f4f5;
-  min-width: 180px;
+  min-width: 200px;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
 }
 
@@ -309,20 +296,45 @@ select {
   font-size: 13px;
 }
 
-.track-polyline {
-  fill: none;
-  stroke: #ef4444;
-  stroke-width: 4;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  opacity: 0.85;
+@media (max-width: 1100px) {
+  .metrics-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .driver-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .header {
+    flex-direction: column;
+  }
 }
 
-.track-map-polyline {
-  fill: none;
-  stroke: #52525b;
-  stroke-width: 3;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  opacity: 0.75;
+@media (max-width: 900px) {
+  .driver-profile-card {
+    grid-template-columns: 1fr;
+  }
+
+  .driver-image-wrapper {
+    width: 110px;
+    height: 110px;
+  }
+}
+
+@media (max-width: 700px) {
+  .dashboard {
+    padding: 20px;
+  }
+
+  h1 {
+    font-size: 32px;
+  }
+
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .control-panel {
+    grid-template-columns: 1fr;
+  }
 }

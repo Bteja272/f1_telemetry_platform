@@ -38,19 +38,25 @@ function formatSessionLabel(session) {
       })
     : "Date unavailable";
 
-  const location = session.location || "Unknown Location";
-  const circuit = session.circuit_short_name || "Unknown Circuit";
-
-  return `${location} · ${circuit} · ${date}`;
+  return `${session.location || "Unknown Location"} · ${
+    session.circuit_short_name || "Unknown Circuit"
+  } · ${date}`;
 }
 
 function RaceMap({
   trackMapPoints,
   selectedDriverLocations,
+  latestDriverLocations,
   drivers,
   selectedDriver,
 }) {
   const [hoveredPoint, setHoveredPoint] = useState(null);
+
+  const selectedDriverData = useMemo(() => {
+    return drivers.find(
+      (driver) => Number(driver.driver_number) === Number(selectedDriver)
+    );
+  }, [drivers, selectedDriver]);
 
   const latestSelectedDriverPoint = useMemo(() => {
     if (!selectedDriverLocations.length) return null;
@@ -77,6 +83,12 @@ function RaceMap({
     );
   };
 
+  const getTeamColor = (driver) => {
+    return driver?.team_colour
+      ? `#${driver.team_colour.replace("#", "")}`
+      : "#e5e7eb";
+  };
+
   const scalePoint = (point) => {
     if (!bounds) return { cx: 0, cy: 0 };
 
@@ -87,13 +99,14 @@ function RaceMap({
     const xRange = bounds.maxX - bounds.minX || 1;
     const yRange = bounds.maxY - bounds.minY || 1;
 
-    const cx =
-      padding + ((point.x - bounds.minX) / xRange) * (width - padding * 2);
-
-    const cy =
-      padding + ((bounds.maxY - point.y) / yRange) * (height - padding * 2);
-
-    return { cx, cy };
+    return {
+      cx:
+        padding +
+        ((point.x - bounds.minX) / xRange) * (width - padding * 2),
+      cy:
+        padding +
+        ((bounds.maxY - point.y) / yRange) * (height - padding * 2),
+    };
   };
 
   const trackMapPolyline = useMemo(() => {
@@ -114,7 +127,7 @@ function RaceMap({
           <p className="label">Race Map</p>
           <h2>Track Map</h2>
         </div>
-        <p className="chart-note">Precomputed circuit path</p>
+        <p className="chart-note">Precomputed circuit path + driver markers</p>
       </div>
 
       <div className="race-map-container">
@@ -125,45 +138,87 @@ function RaceMap({
             <rect x="0" y="0" width="900" height="420" rx="18" />
 
             {trackMapPolyline && (
-              <polyline
-                points={trackMapPolyline}
-                className="track-map-polyline"
-              />
-            )}
-
-            {latestSelectedDriverPoint && (
-              <g
-                onMouseEnter={() => setHoveredPoint(latestSelectedDriverPoint)}
-                onMouseLeave={() => setHoveredPoint(null)}
-              >
-                <circle
-                  cx={scalePoint(latestSelectedDriverPoint).cx}
-                  cy={scalePoint(latestSelectedDriverPoint).cy}
-                  r="12"
-                  className="driver-dot selected"
+              <>
+                <polyline points={trackMapPolyline} className="track-outline" />
+                <polyline points={trackMapPolyline} className="track-surface" />
+                <polyline
+                  points={trackMapPolyline}
+                  className="track-centerline"
                 />
-
-                <text
-                  x={scalePoint(latestSelectedDriverPoint).cx + 12}
-                  y={scalePoint(latestSelectedDriverPoint).cy + 4}
-                  className="driver-dot-label"
-                >
-                  {getDriver(selectedDriver)?.name_acronym || selectedDriver}
-                </text>
-              </g>
+              </>
             )}
+
+            {latestDriverLocations.map((point) => {
+              const driver = getDriver(point.driver_number);
+              const { cx, cy } = scalePoint(point);
+              const isSelected =
+                String(point.driver_number) === String(selectedDriver);
+
+              return (
+                <g
+                  key={point.driver_number}
+                  onMouseEnter={() => setHoveredPoint(point)}
+                  onMouseLeave={() => setHoveredPoint(null)}
+                >
+                  <circle
+                    cx={cx}
+                    cy={cy}
+                    r={isSelected ? 13 : 9}
+                    className={isSelected ? "driver-dot selected" : "driver-dot"}
+                    style={{
+                      fill: getTeamColor(driver),
+                      stroke: isSelected ? "#ffffff" : "#020617",
+                    }}
+                  />
+
+                  <text x={cx + 12} y={cy + 4} className="driver-dot-label">
+                    {driver?.name_acronym || point.driver_number}
+                  </text>
+                </g>
+              );
+            })}
+
+            {latestSelectedDriverPoint &&
+              latestDriverLocations.length === 0 && (
+                <g
+                  onMouseEnter={() =>
+                    setHoveredPoint(latestSelectedDriverPoint)
+                  }
+                  onMouseLeave={() => setHoveredPoint(null)}
+                >
+                  <circle
+                    cx={scalePoint(latestSelectedDriverPoint).cx}
+                    cy={scalePoint(latestSelectedDriverPoint).cy}
+                    r="12"
+                    className="driver-dot selected"
+                    style={{
+                      fill: getTeamColor(selectedDriverData),
+                      stroke: "#ffffff",
+                    }}
+                  />
+
+                  <text
+                    x={scalePoint(latestSelectedDriverPoint).cx + 14}
+                    y={scalePoint(latestSelectedDriverPoint).cy + 5}
+                    className="driver-dot-label"
+                  >
+                    {selectedDriverData?.name_acronym || selectedDriver}
+                  </text>
+                </g>
+              )}
           </svg>
         )}
 
         {hoveredPoint && (
           <div className="map-tooltip">
             <strong>
-              {getDriver(selectedDriver)?.name_acronym ||
-                `Driver ${selectedDriver}`}
+              {getDriver(hoveredPoint.driver_number)?.name_acronym ||
+                `Driver ${hoveredPoint.driver_number}`}
             </strong>
+            <span>{getDriver(hoveredPoint.driver_number)?.full_name}</span>
+            <span>{getDriver(hoveredPoint.driver_number)?.team_name}</span>
             <span>X: {hoveredPoint.x}</span>
             <span>Y: {hoveredPoint.y}</span>
-            <span>{hoveredPoint.event_time}</span>
           </div>
         )}
       </div>
@@ -180,10 +235,10 @@ function App() {
   const [telemetry, setTelemetry] = useState(null);
   const [historyData, setHistoryData] = useState([]);
   const [chartData, setChartData] = useState([]);
-  const [locationData, setLocationData] = useState([]);
   const [trackMapData, setTrackMapData] = useState([]);
   const [selectedDriverLocationData, setSelectedDriverLocationData] =
     useState([]);
+  const [latestDriverLocations, setLatestDriverLocations] = useState([]);
   const [connected, setConnected] = useState(false);
   const [metrics, setMetrics] = useState(null);
 
@@ -203,10 +258,7 @@ function App() {
     const fetchSessions = async () => {
       try {
         const response = await fetch(`${API_BASE}/sessions`);
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch sessions");
-        }
+        if (!response.ok) throw new Error("Failed to fetch sessions");
 
         const data = await response.json();
         const availableSessions = data.sessions || [];
@@ -232,10 +284,7 @@ function App() {
         const response = await fetch(
           `${API_BASE}/sessions/${selectedSession}/drivers`
         );
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch drivers");
-        }
+        if (!response.ok) throw new Error("Failed to fetch drivers");
 
         const data = await response.json();
         const availableDrivers = data.drivers || [];
@@ -250,32 +299,12 @@ function App() {
       }
     };
 
-    const fetchLocations = async () => {
-      try {
-        const response = await fetch(
-          // `${API_BASE}/sessions/${selectedSession}/locations?limit=20000`
-        );
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch locations");
-        }
-
-        const data = await response.json();
-        setLocationData(data.locations || []);
-      } catch (error) {
-        console.error("Failed to fetch locations:", error);
-      }
-    };
-
     const fetchTrackMap = async () => {
       try {
         const response = await fetch(
           `${API_BASE}/sessions/${selectedSession}/track-map`
         );
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch track map");
-        }
+        if (!response.ok) throw new Error("Failed to fetch track map");
 
         const data = await response.json();
         setTrackMapData(data.points || []);
@@ -284,8 +313,25 @@ function App() {
       }
     };
 
+    const fetchLatestDriverLocations = async () => {
+      try {
+        const response = await fetch(
+          `${API_BASE}/sessions/${selectedSession}/latest-locations`
+        );
+        if (!response.ok) {
+          throw new Error("Failed to fetch latest driver locations");
+        }
+
+        const data = await response.json();
+        setLatestDriverLocations(data.locations || []);
+      } catch (error) {
+        console.error("Failed to fetch latest driver locations:", error);
+      }
+    };
+
     fetchDrivers();
     fetchTrackMap();
+    fetchLatestDriverLocations();
   }, [selectedSession]);
 
   useEffect(() => {
@@ -296,10 +342,7 @@ function App() {
         const response = await fetch(
           `${API_BASE}/sessions/${selectedSession}/drivers/${selectedDriver}/history?limit=30`
         );
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch driver history");
-        }
+        if (!response.ok) throw new Error("Failed to fetch driver history");
 
         const data = await response.json();
 
@@ -324,7 +367,6 @@ function App() {
         const response = await fetch(
           `${API_BASE}/sessions/${selectedSession}/drivers/${selectedDriver}/locations?limit=10000`
         );
-
         if (!response.ok) {
           throw new Error("Failed to fetch selected driver locations");
         }
@@ -349,14 +391,11 @@ function App() {
 
     const socket = new WebSocket(`${WS_BASE}/ws/telemetry/${selectedDriver}`);
 
-    socket.onopen = () => {
-      setConnected(true);
-    };
+    socket.onopen = () => setConnected(true);
 
     socket.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-
         if (!data || data.message) return;
 
         setTelemetry(data);
@@ -380,27 +419,17 @@ function App() {
       }
     };
 
-    socket.onclose = () => {
-      setConnected(false);
-    };
+    socket.onclose = () => setConnected(false);
+    socket.onerror = () => setConnected(false);
 
-    socket.onerror = () => {
-      setConnected(false);
-    };
-
-    return () => {
-      socket.close();
-    };
+    return () => socket.close();
   }, [selectedDriver]);
 
   useEffect(() => {
     const fetchMetrics = async () => {
       try {
         const response = await fetch(`${API_BASE}/metrics/system`);
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch metrics");
-        }
+        if (!response.ok) throw new Error("Failed to fetch metrics");
 
         const data = await response.json();
         setMetrics(data);
@@ -443,9 +472,9 @@ function App() {
               setTelemetry(null);
               setChartData([]);
               setHistoryData([]);
-              setLocationData([]);
               setTrackMapData([]);
               setSelectedDriverLocationData([]);
+              setLatestDriverLocations([]);
             }}
           >
             {sessions.map((session) => (
@@ -516,6 +545,7 @@ function App() {
       <RaceMap
         trackMapPoints={trackMapData}
         selectedDriverLocations={selectedDriverLocationData}
+        latestDriverLocations={latestDriverLocations}
         drivers={drivers}
         selectedDriver={selectedDriver}
       />

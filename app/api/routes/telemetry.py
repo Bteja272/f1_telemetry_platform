@@ -147,3 +147,19 @@ def get_track_map(
         "count": len(points),
         "points": points,
     }
+
+@router.get("/sessions/{session_key}/latest-locations")
+def get_latest_locations_by_session(
+    session_key: int,
+    db: Session = Depends(get_db),
+):
+    locations = telemetry_service.get_latest_locations_by_session(
+        db=db,
+        session_key=session_key,
+    )
+
+    return {
+        "session_key": session_key,
+        "count": len(locations),
+        "locations": locations,
+    }

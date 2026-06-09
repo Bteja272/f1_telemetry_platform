@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.db.models import DriverMetadata
 from app.db.models import SessionMetadata
@@ -138,3 +139,34 @@ class TelemetryRepository:
         points: list[TrackMapPoint],
     ):
         db.add_all(points)
+
+    def get_latest_locations_by_session(
+        self,
+        db: Session,
+        session_key: int,
+    ):
+        latest_rows = (
+            db.query(
+                LocationEvent.driver_number,
+                func.max(LocationEvent.event_time).label("latest_time"),
+            )
+            .filter(
+                LocationEvent.session_key == session_key,
+                LocationEvent.x != 0,
+                LocationEvent.y != 0,
+            )
+            .group_by(LocationEvent.driver_number)
+            .subquery()
+        )
+
+        return (
+            db.query(LocationEvent)
+            .join(
+                latest_rows,
+                (LocationEvent.driver_number == latest_rows.c.driver_number)
+                & (LocationEvent.event_time == latest_rows.c.latest_time),
+            )
+            .filter(LocationEvent.session_key == session_key)
+            .order_by(LocationEvent.driver_number)
+            .all()
+        )
