@@ -228,6 +228,8 @@ function RaceMap({
 
 function App() {
   const [sessions, setSessions] = useState([]);
+  const [years, setYears] = useState([]);
+  const [selectedYear, setSelectedYear] = useState("");
   const [drivers, setDrivers] = useState([]);
   const [selectedSession, setSelectedSession] = useState("");
   const [selectedDriver, setSelectedDriver] = useState("");
@@ -255,26 +257,58 @@ function App() {
   }, [drivers, selectedDriver]);
 
   useEffect(() => {
-    const fetchSessions = async () => {
+    const fetchYears = async () => {
       try {
-        const response = await fetch(`${API_BASE}/sessions`);
-        if (!response.ok) throw new Error("Failed to fetch sessions");
+        const response = await fetch(`${API_BASE}/years`);
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch years");
+        }
 
         const data = await response.json();
-        const availableSessions = data.sessions || [];
 
-        setSessions(availableSessions);
+        setYears(data.years || []);
 
-        if (availableSessions.length > 0) {
-          setSelectedSession(String(availableSessions[0].session_key));
+        if (data.years?.length > 0) {
+          setSelectedYear(String(data.years[0]));
+        }
+      } catch (error) {
+        console.error("Failed to fetch years:", error);
+      }
+    };
+
+    fetchYears();
+  }, []);
+
+  useEffect(() => {
+    if (!selectedYear) return;
+
+    const fetchSessionsByYear = async () => {
+      try {
+        const response = await fetch(
+          `${API_BASE}/years/${selectedYear}/sessions`
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch sessions");
+        }
+
+        const data = await response.json();
+
+        setSessions(data.sessions || []);
+
+        if (data.sessions?.length > 0) {
+          setSelectedSession(
+            String(data.sessions[0].session_key)
+          );
         }
       } catch (error) {
         console.error("Failed to fetch sessions:", error);
       }
     };
 
-    fetchSessions();
-  }, []);
+    fetchSessionsByYear();
+  }, [selectedYear]);
 
   useEffect(() => {
     if (!selectedSession) return;
@@ -463,7 +497,31 @@ function App() {
 
       <section className="control-panel">
         <div>
-          <p className="label">Race / Session</p>
+          <p className="label">Season</p>
+
+          <select
+            value={selectedYear}
+            onChange={(event) => {
+              setSelectedYear(event.target.value);
+
+              setSelectedSession("");
+              setSelectedDriver("");
+
+              setDrivers([]);
+              setTrackMapData([]);
+              setLatestDriverLocations([]);
+              setSelectedDriverLocationData([]);
+            }}
+          >
+            {years.map((year) => (
+              <option key={year} value={year}>
+                {year}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <p className="label">Race</p>
           <select
             value={selectedSession}
             onChange={(event) => {

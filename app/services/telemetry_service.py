@@ -219,3 +219,34 @@ class TelemetryService:
             }
             for row in rows
         ]
+    
+    def get_available_years(self, db: Session):
+        rows = self.repository.get_available_years(db)
+
+        return [row.year for row in rows]
+
+
+    def get_sessions_by_year(
+        self,
+        db: Session,
+        year: int,
+    ):
+        rows = self.repository.get_sessions_by_year(
+            db=db,
+            year=year,
+        )
+
+        return [
+            {
+                "session_key": row.session_key,
+                "meeting_key": row.meeting_key,
+                "session_name": row.session_name,
+                "session_type": row.session_type,
+                "location": row.location,
+                "country_name": row.country_name,
+                "circuit_short_name": row.circuit_short_name,
+                "date_start": row.date_start,
+                "year": row.year,
+            }
+            for row in rows
+        ]

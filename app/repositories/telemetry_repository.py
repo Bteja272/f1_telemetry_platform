@@ -170,3 +170,25 @@ class TelemetryRepository:
             .order_by(LocationEvent.driver_number)
             .all()
         )
+    
+    def get_available_years(self, db: Session):
+        return (
+            db.query(SessionMetadata.year)
+            .filter(SessionMetadata.year.isnot(None))
+            .distinct()
+            .order_by(SessionMetadata.year.desc())
+            .all()
+        )
+
+
+    def get_sessions_by_year(
+        self,
+        db: Session,
+        year: int,
+    ):
+        return (
+            db.query(SessionMetadata)
+            .filter(SessionMetadata.year == year)
+            .order_by(SessionMetadata.date_start.asc())
+            .all()
+        )

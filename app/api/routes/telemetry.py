@@ -163,3 +163,31 @@ def get_latest_locations_by_session(
         "count": len(locations),
         "locations": locations,
     }
+
+@router.get("/years")
+def get_available_years(
+    db: Session = Depends(get_db),
+):
+    years = telemetry_service.get_available_years(db)
+
+    return {
+        "count": len(years),
+        "years": years,
+    }
+
+
+@router.get("/years/{year}/sessions")
+def get_sessions_by_year(
+    year: int,
+    db: Session = Depends(get_db),
+):
+    sessions = telemetry_service.get_sessions_by_year(
+        db=db,
+        year=year,
+    )
+
+    return {
+        "year": year,
+        "count": len(sessions),
+        "sessions": sessions,
+    }
