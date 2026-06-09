@@ -243,3 +243,86 @@ select {
     height: 110px;
   }
 }
+
+.race-map-container {
+  position: relative;
+  background: #10131a;
+  border-radius: 18px;
+  padding: 12px;
+  min-height: 420px;
+}
+
+.race-map-svg {
+  width: 100%;
+  height: 420px;
+  display: block;
+}
+
+.race-map-svg rect {
+  fill: #0f1117;
+  stroke: #272b38;
+  stroke-width: 2;
+}
+
+.driver-dot {
+  fill: #e5e7eb;
+  stroke: #111827;
+  stroke-width: 2;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.driver-dot.selected {
+  fill: #ef4444;
+  stroke: #fca5a5;
+  stroke-width: 3;
+}
+
+.driver-dot:hover {
+  fill: #f97316;
+}
+
+.driver-dot-label {
+  fill: #f4f4f5;
+  font-size: 12px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.map-tooltip {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  background: #181b24;
+  border: 1px solid #272b38;
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: grid;
+  gap: 4px;
+  color: #f4f4f5;
+  min-width: 180px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+}
+
+.map-tooltip span {
+  color: #a1a1aa;
+  font-size: 13px;
+}
+
+.track-polyline {
+  fill: none;
+  stroke: #ef4444;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.85;
+}
+
+.track-map-polyline {
+  fill: none;
+  stroke: #52525b;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.75;
+}

@@ -14,7 +14,7 @@ from app.db.models import SessionMetadata
 
 MAX_DRIVERS = None
 EVENTS_PER_DRIVER = 40
-LOCATION_EVENTS_PER_DRIVER = 80
+LOCATION_EVENTS_PER_DRIVER = 10000
 MIN_SPEED = 100
 
 
@@ -368,43 +368,39 @@ def publish_events():
 
             time.sleep(0.05)
 
-        raw_locations = fetch_driver_location_data(
-            session_key=session_key,
-            driver_number=driver_number,
-        )
+        # raw_locations = fetch_driver_location_data(
+        #     session_key=session_key,
+        #     driver_number=driver_number,
+        # )
 
-        print(
-            f"Fetched {len(raw_locations)} location events "
-            f"for driver={driver_number} ({driver.get('full_name')})"
-        )
+        # print(
+        #     f"Fetched {len(raw_locations)} location events "
+        #     f"for driver={driver_number} ({driver.get('full_name')})"
+        # )
 
-        for raw_location in raw_locations:
-            location_event = normalize_location_event(raw_location)
+        # for raw_location in raw_locations:
+        #     location_event = normalize_location_event(raw_location)
 
-            producer.send(
-                settings.KAFKA_TOPIC,
-                value=location_event,
-            )
+        #     producer.send(
+        #         settings.KAFKA_TOPIC,
+        #         value=location_event,
+        #     )
 
-            total_location_published += 1
+        #     total_location_published += 1
 
-            print(
-                f"Published location: "
-                f"driver={location_event['driver_number']} "
-                f"x={location_event['x']} "
-                f"y={location_event['y']}"
-            )
+        #     print(
+        #         f"Published location: "
+        #         f"driver={location_event['driver_number']} "
+        #         f"x={location_event['x']} "
+        #         f"y={location_event['y']}"
+        #     )
 
-            time.sleep(0.02)
+        #     time.sleep(0.02)
 
     producer.flush()
     producer.close()
 
-    print(
-        f"Finished publishing "
-        f"{total_telemetry_published} telemetry events and "
-        f"{total_location_published} location events"
-    )
+    print(f"Finished publishing {total_telemetry_published} telemetry events")
 
 
 if __name__ == "__main__":

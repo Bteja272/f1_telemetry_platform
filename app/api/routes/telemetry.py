@@ -110,3 +110,40 @@ def get_session_locations(
         "count": len(locations),
         "locations": locations,
     }
+
+@router.get("/sessions/{session_key}/drivers/{driver_number}/locations")
+def get_driver_locations_by_session(
+    session_key: int,
+    driver_number: int,
+    limit: int = Query(default=3000, ge=1, le=10000),
+    db: Session = Depends(get_db),
+):
+    locations = telemetry_service.get_driver_locations_by_session(
+        db=db,
+        session_key=session_key,
+        driver_number=driver_number,
+        limit=limit,
+    )
+
+    return {
+        "session_key": session_key,
+        "driver_number": driver_number,
+        "count": len(locations),
+        "locations": locations,
+    }
+
+@router.get("/sessions/{session_key}/track-map")
+def get_track_map(
+    session_key: int,
+    db: Session = Depends(get_db),
+):
+    points = telemetry_service.get_track_map(
+        db=db,
+        session_key=session_key,
+    )
+
+    return {
+        "session_key": session_key,
+        "count": len(points),
+        "points": points,
+    }

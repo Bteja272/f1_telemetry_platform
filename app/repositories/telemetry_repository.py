@@ -4,6 +4,7 @@ from app.db.models import DriverMetadata
 from app.db.models import SessionMetadata
 from app.db.models import TelemetryEvent
 from app.db.models import LocationEvent
+from app.db.models import TrackMapPoint 
 
 
 class TelemetryRepository:
@@ -85,3 +86,55 @@ class TelemetryRepository:
             .limit(limit)
             .all()
         )
+    
+    def get_driver_locations_by_session(
+        self,
+        db: Session,
+        session_key: int,
+        driver_number: int,
+        limit: int = 3000,
+    ):
+        return (
+            db.query(LocationEvent)
+            .filter(
+                LocationEvent.session_key == session_key,
+                LocationEvent.driver_number == driver_number,
+                LocationEvent.x != 0,
+                LocationEvent.y != 0,
+            )
+            .order_by(LocationEvent.event_time.asc())
+            .limit(limit)
+            .all()
+        )
+    
+    def get_track_map(
+        self,
+        db: Session,
+        session_key: int,
+    ):
+        return (
+            db.query(TrackMapPoint)
+            .filter(TrackMapPoint.session_key == session_key)
+            .order_by(TrackMapPoint.point_order.asc())
+            .all()
+        )
+
+
+    def clear_track_map(
+        self,
+        db: Session,
+        session_key: int,
+    ):
+        (
+            db.query(TrackMapPoint)
+            .filter(TrackMapPoint.session_key == session_key)
+            .delete()
+        )
+
+
+    def save_track_map_points(
+        self,
+        db: Session,
+        points: list[TrackMapPoint],
+    ):
+        db.add_all(points)

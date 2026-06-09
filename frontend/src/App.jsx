@@ -44,6 +44,133 @@ function formatSessionLabel(session) {
   return `${location} · ${circuit} · ${date}`;
 }
 
+function RaceMap({
+  trackMapPoints,
+  selectedDriverLocations,
+  drivers,
+  selectedDriver,
+}) {
+  const [hoveredPoint, setHoveredPoint] = useState(null);
+
+  const latestSelectedDriverPoint = useMemo(() => {
+    if (!selectedDriverLocations.length) return null;
+    return selectedDriverLocations[selectedDriverLocations.length - 1];
+  }, [selectedDriverLocations]);
+
+  const bounds = useMemo(() => {
+    if (!trackMapPoints.length) return null;
+
+    const xs = trackMapPoints.map((point) => point.x);
+    const ys = trackMapPoints.map((point) => point.y);
+
+    return {
+      minX: Math.min(...xs),
+      maxX: Math.max(...xs),
+      minY: Math.min(...ys),
+      maxY: Math.max(...ys),
+    };
+  }, [trackMapPoints]);
+
+  const getDriver = (driverNumber) => {
+    return drivers.find(
+      (driver) => Number(driver.driver_number) === Number(driverNumber)
+    );
+  };
+
+  const scalePoint = (point) => {
+    if (!bounds) return { cx: 0, cy: 0 };
+
+    const width = 900;
+    const height = 420;
+    const padding = 40;
+
+    const xRange = bounds.maxX - bounds.minX || 1;
+    const yRange = bounds.maxY - bounds.minY || 1;
+
+    const cx =
+      padding + ((point.x - bounds.minX) / xRange) * (width - padding * 2);
+
+    const cy =
+      padding + ((bounds.maxY - point.y) / yRange) * (height - padding * 2);
+
+    return { cx, cy };
+  };
+
+  const trackMapPolyline = useMemo(() => {
+    if (trackMapPoints.length < 2 || !bounds) return "";
+
+    return trackMapPoints
+      .map((point) => {
+        const { cx, cy } = scalePoint(point);
+        return `${cx},${cy}`;
+      })
+      .join(" ");
+  }, [trackMapPoints, bounds]);
+
+  return (
+    <section className="chart-card">
+      <div className="chart-header">
+        <div>
+          <p className="label">Race Map</p>
+          <h2>Track Map</h2>
+        </div>
+        <p className="chart-note">Precomputed circuit path</p>
+      </div>
+
+      <div className="race-map-container">
+        {trackMapPoints.length === 0 ? (
+          <p className="driver-meta">No track map available yet.</p>
+        ) : (
+          <svg viewBox="0 0 900 420" className="race-map-svg">
+            <rect x="0" y="0" width="900" height="420" rx="18" />
+
+            {trackMapPolyline && (
+              <polyline
+                points={trackMapPolyline}
+                className="track-map-polyline"
+              />
+            )}
+
+            {latestSelectedDriverPoint && (
+              <g
+                onMouseEnter={() => setHoveredPoint(latestSelectedDriverPoint)}
+                onMouseLeave={() => setHoveredPoint(null)}
+              >
+                <circle
+                  cx={scalePoint(latestSelectedDriverPoint).cx}
+                  cy={scalePoint(latestSelectedDriverPoint).cy}
+                  r="12"
+                  className="driver-dot selected"
+                />
+
+                <text
+                  x={scalePoint(latestSelectedDriverPoint).cx + 12}
+                  y={scalePoint(latestSelectedDriverPoint).cy + 4}
+                  className="driver-dot-label"
+                >
+                  {getDriver(selectedDriver)?.name_acronym || selectedDriver}
+                </text>
+              </g>
+            )}
+          </svg>
+        )}
+
+        {hoveredPoint && (
+          <div className="map-tooltip">
+            <strong>
+              {getDriver(selectedDriver)?.name_acronym ||
+                `Driver ${selectedDriver}`}
+            </strong>
+            <span>X: {hoveredPoint.x}</span>
+            <span>Y: {hoveredPoint.y}</span>
+            <span>{hoveredPoint.event_time}</span>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function App() {
   const [sessions, setSessions] = useState([]);
   const [drivers, setDrivers] = useState([]);
@@ -53,6 +180,10 @@ function App() {
   const [telemetry, setTelemetry] = useState(null);
   const [historyData, setHistoryData] = useState([]);
   const [chartData, setChartData] = useState([]);
+  const [locationData, setLocationData] = useState([]);
+  const [trackMapData, setTrackMapData] = useState([]);
+  const [selectedDriverLocationData, setSelectedDriverLocationData] =
+    useState([]);
   const [connected, setConnected] = useState(false);
   const [metrics, setMetrics] = useState(null);
 
@@ -119,7 +250,42 @@ function App() {
       }
     };
 
+    const fetchLocations = async () => {
+      try {
+        const response = await fetch(
+          // `${API_BASE}/sessions/${selectedSession}/locations?limit=20000`
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch locations");
+        }
+
+        const data = await response.json();
+        setLocationData(data.locations || []);
+      } catch (error) {
+        console.error("Failed to fetch locations:", error);
+      }
+    };
+
+    const fetchTrackMap = async () => {
+      try {
+        const response = await fetch(
+          `${API_BASE}/sessions/${selectedSession}/track-map`
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch track map");
+        }
+
+        const data = await response.json();
+        setTrackMapData(data.points || []);
+      } catch (error) {
+        console.error("Failed to fetch track map:", error);
+      }
+    };
+
     fetchDrivers();
+    fetchTrackMap();
   }, [selectedSession]);
 
   useEffect(() => {
@@ -153,7 +319,25 @@ function App() {
       }
     };
 
+    const fetchSelectedDriverLocations = async () => {
+      try {
+        const response = await fetch(
+          `${API_BASE}/sessions/${selectedSession}/drivers/${selectedDriver}/locations?limit=10000`
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch selected driver locations");
+        }
+
+        const data = await response.json();
+        setSelectedDriverLocationData(data.locations || []);
+      } catch (error) {
+        console.error("Failed to fetch selected driver locations:", error);
+      }
+    };
+
     fetchHistory();
+    fetchSelectedDriverLocations();
   }, [selectedSession, selectedDriver]);
 
   useEffect(() => {
@@ -166,7 +350,6 @@ function App() {
     const socket = new WebSocket(`${WS_BASE}/ws/telemetry/${selectedDriver}`);
 
     socket.onopen = () => {
-      console.log("WebSocket connected");
       setConnected(true);
     };
 
@@ -198,12 +381,10 @@ function App() {
     };
 
     socket.onclose = () => {
-      console.log("WebSocket disconnected");
       setConnected(false);
     };
 
-    socket.onerror = (error) => {
-      console.error("WebSocket error:", error);
+    socket.onerror = () => {
       setConnected(false);
     };
 
@@ -262,6 +443,9 @@ function App() {
               setTelemetry(null);
               setChartData([]);
               setHistoryData([]);
+              setLocationData([]);
+              setTrackMapData([]);
+              setSelectedDriverLocationData([]);
             }}
           >
             {sessions.map((session) => (
@@ -280,6 +464,7 @@ function App() {
               setSelectedDriver(event.target.value);
               setTelemetry(null);
               setChartData([]);
+              setSelectedDriverLocationData([]);
             }}
           >
             {drivers.map((driver) => (
@@ -327,6 +512,13 @@ function App() {
           </p>
         </div>
       </section>
+
+      <RaceMap
+        trackMapPoints={trackMapData}
+        selectedDriverLocations={selectedDriverLocationData}
+        drivers={drivers}
+        selectedDriver={selectedDriver}
+      />
 
       <section className="driver-panel">
         <div>

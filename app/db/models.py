@@ -86,3 +86,15 @@ class LocationEvent(Base):
     z = Column(Float)
 
     ingested_at = Column(DateTime(timezone=True))
+
+class TrackMapPoint(Base):
+    __tablename__ = "track_map_points"
+
+    session_key = Column(Integer, primary_key=True, nullable=False)
+    point_order = Column(Integer, primary_key=True, nullable=False)
+
+    x = Column(Float, nullable=False)
+    y = Column(Float, nullable=False)
+
+    source = Column(String, default="aggregated_location")
+    created_at = Column(DateTime(timezone=True))

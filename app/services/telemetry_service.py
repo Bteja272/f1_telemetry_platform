@@ -149,3 +149,51 @@ class TelemetryService:
             }
             for row in rows
         ]
+    def get_driver_locations_by_session(
+        self,
+        db: Session,
+        session_key: int,
+        driver_number: int,
+        limit: int = 3000,
+    ):
+        rows = self.repository.get_driver_locations_by_session(
+            db=db,
+            session_key=session_key,
+            driver_number=driver_number,
+            limit=limit,
+        )
+
+        return [
+            {
+                "driver_number": row.driver_number,
+                "session_key": row.session_key,
+                "meeting_key": row.meeting_key,
+                "x": row.x,
+                "y": row.y,
+                "z": row.z,
+                "event_time": row.event_time,
+            }
+            for row in rows
+        ]
+    
+    def get_track_map(
+        self,
+        db: Session,
+        session_key: int,
+    ):
+        rows = self.repository.get_track_map(
+            db=db,
+            session_key=session_key,
+        )
+
+        return [
+            {
+                "session_key": row.session_key,
+                "point_order": row.point_order,
+                "x": row.x,
+                "y": row.y,
+                "source": row.source,
+                "created_at": row.created_at,
+            }
+            for row in rows
+        ]
