@@ -49,6 +49,12 @@ function RaceMap({
   latestDriverLocations,
   drivers,
   selectedDriver,
+  isReplaying,
+  setIsReplaying,
+  replayIndex,
+  setReplayIndex,
+  replaySpeed,
+  setReplaySpeed,
 }) {
   const [hoveredPoint, setHoveredPoint] = useState(null);
 
@@ -58,10 +64,16 @@ function RaceMap({
     );
   }, [drivers, selectedDriver]);
 
-  const latestSelectedDriverPoint = useMemo(() => {
+  const replayPoint = useMemo(() => {
     if (!selectedDriverLocations.length) return null;
-    return selectedDriverLocations[selectedDriverLocations.length - 1];
-  }, [selectedDriverLocations]);
+
+    const safeIndex = Math.min(
+      replayIndex,
+      selectedDriverLocations.length - 1
+    );
+
+    return selectedDriverLocations[safeIndex];
+  }, [selectedDriverLocations, replayIndex]);
 
   const bounds = useMemo(() => {
     if (!trackMapPoints.length) return null;
@@ -76,6 +88,31 @@ function RaceMap({
       maxY: Math.max(...ys),
     };
   }, [trackMapPoints]);
+
+  useEffect(() => {
+    if (!isReplaying || selectedDriverLocations.length === 0) return;
+
+    const interval = setInterval(() => {
+      setReplayIndex((previousIndex) => {
+        const nextIndex = previousIndex + 1;
+
+        if (nextIndex >= selectedDriverLocations.length) {
+          setIsReplaying(false);
+          return selectedDriverLocations.length - 1;
+        }
+
+        return nextIndex;
+      });
+    }, 250 / replaySpeed);
+
+    return () => clearInterval(interval);
+  }, [
+    isReplaying,
+    replaySpeed,
+    selectedDriverLocations.length,
+    setIsReplaying,
+    setReplayIndex,
+  ]);
 
   const getDriver = (driverNumber) => {
     return drivers.find(
@@ -127,7 +164,55 @@ function RaceMap({
           <p className="label">Race Map</p>
           <h2>Track Map</h2>
         </div>
-        <p className="chart-note">Precomputed circuit path + driver markers</p>
+        <p className="chart-note">Replay selected driver around the circuit</p>
+      </div>
+
+      <div className="replay-controls">
+        <button
+          type="button"
+          onClick={() => setIsReplaying((current) => !current)}
+          disabled={selectedDriverLocations.length === 0}
+        >
+          {isReplaying ? "Pause" : "Play"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setIsReplaying(false);
+            setReplayIndex(0);
+          }}
+          disabled={selectedDriverLocations.length === 0}
+        >
+          Reset
+        </button>
+
+        <select
+          value={replaySpeed}
+          onChange={(event) => setReplaySpeed(Number(event.target.value))}
+        >
+          <option value={1}>1x</option>
+          <option value={2}>2x</option>
+          <option value={4}>4x</option>
+        </select>
+
+        <input
+          type="range"
+          min="0"
+          max={Math.max(selectedDriverLocations.length - 1, 0)}
+          value={replayIndex}
+          onChange={(event) => {
+            setIsReplaying(false);
+            setReplayIndex(Number(event.target.value));
+          }}
+          disabled={selectedDriverLocations.length === 0}
+        />
+
+        <span className="replay-status">
+          {selectedDriverLocations.length > 0
+            ? `${replayIndex + 1} / ${selectedDriverLocations.length}`
+            : "No replay data"}
+        </span>
       </div>
 
       <div className="race-map-container">
@@ -148,64 +233,64 @@ function RaceMap({
               </>
             )}
 
-            {latestDriverLocations.map((point) => {
-              const driver = getDriver(point.driver_number);
-              const { cx, cy } = scalePoint(point);
-              const isSelected =
-                String(point.driver_number) === String(selectedDriver);
+            {latestDriverLocations
+              .filter(
+                (point) =>
+                  String(point.driver_number) !== String(selectedDriver)
+              )
+              .map((point) => {
+                const driver = getDriver(point.driver_number);
+                const { cx, cy } = scalePoint(point);
 
-              return (
-                <g
-                  key={point.driver_number}
-                  onMouseEnter={() => setHoveredPoint(point)}
-                  onMouseLeave={() => setHoveredPoint(null)}
-                >
-                  <circle
-                    cx={cx}
-                    cy={cy}
-                    r={isSelected ? 13 : 9}
-                    className={isSelected ? "driver-dot selected" : "driver-dot"}
-                    style={{
-                      fill: getTeamColor(driver),
-                      stroke: isSelected ? "#ffffff" : "#020617",
-                    }}
-                  />
-
-                  <text x={cx + 12} y={cy + 4} className="driver-dot-label">
-                    {driver?.name_acronym || point.driver_number}
-                  </text>
-                </g>
-              );
-            })}
-
-            {latestSelectedDriverPoint &&
-              latestDriverLocations.length === 0 && (
-                <g
-                  onMouseEnter={() =>
-                    setHoveredPoint(latestSelectedDriverPoint)
-                  }
-                  onMouseLeave={() => setHoveredPoint(null)}
-                >
-                  <circle
-                    cx={scalePoint(latestSelectedDriverPoint).cx}
-                    cy={scalePoint(latestSelectedDriverPoint).cy}
-                    r="12"
-                    className="driver-dot selected"
-                    style={{
-                      fill: getTeamColor(selectedDriverData),
-                      stroke: "#ffffff",
-                    }}
-                  />
-
-                  <text
-                    x={scalePoint(latestSelectedDriverPoint).cx + 14}
-                    y={scalePoint(latestSelectedDriverPoint).cy + 5}
-                    className="driver-dot-label"
+                return (
+                  <g
+                    key={point.driver_number}
+                    onMouseEnter={() => setHoveredPoint(point)}
+                    onMouseLeave={() => setHoveredPoint(null)}
                   >
-                    {selectedDriverData?.name_acronym || selectedDriver}
-                  </text>
-                </g>
-              )}
+                    <circle
+                      cx={cx}
+                      cy={cy}
+                      r="9"
+                      className="driver-dot"
+                      style={{
+                        fill: getTeamColor(driver),
+                        stroke: "#020617",
+                      }}
+                    />
+
+                    <text x={cx + 12} y={cy + 4} className="driver-dot-label">
+                      {driver?.name_acronym || point.driver_number}
+                    </text>
+                  </g>
+                );
+              })}
+
+            {replayPoint && (
+              <g
+                onMouseEnter={() => setHoveredPoint(replayPoint)}
+                onMouseLeave={() => setHoveredPoint(null)}
+              >
+                <circle
+                  cx={scalePoint(replayPoint).cx}
+                  cy={scalePoint(replayPoint).cy}
+                  r="14"
+                  className="driver-dot selected"
+                  style={{
+                    fill: getTeamColor(selectedDriverData),
+                    stroke: "#ffffff",
+                  }}
+                />
+
+                <text
+                  x={scalePoint(replayPoint).cx + 15}
+                  y={scalePoint(replayPoint).cy + 5}
+                  className="driver-dot-label"
+                >
+                  {selectedDriverData?.name_acronym || selectedDriver}
+                </text>
+              </g>
+            )}
           </svg>
         )}
 
@@ -213,18 +298,26 @@ function RaceMap({
           <div className="map-tooltip">
             <strong>
               {getDriver(hoveredPoint.driver_number)?.name_acronym ||
+                selectedDriverData?.name_acronym ||
                 `Driver ${hoveredPoint.driver_number}`}
             </strong>
-            <span>{getDriver(hoveredPoint.driver_number)?.full_name}</span>
-            <span>{getDriver(hoveredPoint.driver_number)?.team_name}</span>
+            <span>
+              {getDriver(hoveredPoint.driver_number)?.full_name ||
+                selectedDriverData?.full_name}
+            </span>
+            <span>
+              {getDriver(hoveredPoint.driver_number)?.team_name ||
+                selectedDriverData?.team_name}
+            </span>
             <span>X: {hoveredPoint.x}</span>
             <span>Y: {hoveredPoint.y}</span>
+            <span>{hoveredPoint.event_time}</span>
           </div>
         )}
       </div>
     </section>
   );
-}
+} 
 
 function App() {
   const [sessions, setSessions] = useState([]);
@@ -233,6 +326,9 @@ function App() {
   const [drivers, setDrivers] = useState([]);
   const [selectedSession, setSelectedSession] = useState("");
   const [selectedDriver, setSelectedDriver] = useState("");
+  const [isReplaying, setIsReplaying] = useState(false);
+  const [replayIndex, setReplayIndex] = useState(0);
+  const [replaySpeed, setReplaySpeed] = useState(1);
 
   const [telemetry, setTelemetry] = useState(null);
   const [historyData, setHistoryData] = useState([]);
@@ -350,16 +446,27 @@ function App() {
     const fetchLatestDriverLocations = async () => {
       try {
         const response = await fetch(
-          `${API_BASE}/sessions/${selectedSession}/latest-locations`
+          `${API_BASE}/sessions/${selectedSession}/openf1-latest-locations`
         );
+
         if (!response.ok) {
           throw new Error("Failed to fetch latest driver locations");
         }
 
         const data = await response.json();
+
+        console.log(
+          "Latest driver locations:",
+          data.count,
+          data.locations
+        );
+
         setLatestDriverLocations(data.locations || []);
       } catch (error) {
-        console.error("Failed to fetch latest driver locations:", error);
+        console.error(
+          "Failed to fetch latest driver locations:",
+          error
+        );
       }
     };
 
@@ -399,7 +506,7 @@ function App() {
     const fetchSelectedDriverLocations = async () => {
       try {
         const response = await fetch(
-          `${API_BASE}/sessions/${selectedSession}/drivers/${selectedDriver}/locations?limit=10000`
+          `${API_BASE}/sessions/${selectedSession}/drivers/${selectedDriver}/openf1-locations?limit=10000`
         );
         if (!response.ok) {
           throw new Error("Failed to fetch selected driver locations");
@@ -606,6 +713,12 @@ function App() {
         latestDriverLocations={latestDriverLocations}
         drivers={drivers}
         selectedDriver={selectedDriver}
+        isReplaying={isReplaying}
+        setIsReplaying={setIsReplaying}
+        replayIndex={replayIndex}
+        setReplayIndex={setReplayIndex}
+        replaySpeed={replaySpeed}
+        setReplaySpeed={setReplaySpeed}
       />
 
       <section className="driver-panel">

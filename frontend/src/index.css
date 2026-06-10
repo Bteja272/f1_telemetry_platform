@@ -338,3 +338,37 @@ select {
     grid-template-columns: 1fr;
   }
 }
+
+.replay-controls {
+  display: grid;
+  grid-template-columns: auto auto auto 1fr auto;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.replay-controls button,
+.replay-controls select {
+  background: #10131a;
+  color: #f4f4f5;
+  border: 1px solid #272b38;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-weight: 700;
+}
+
+.replay-controls button:disabled,
+.replay-controls input:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.replay-controls input[type="range"] {
+  width: 100%;
+}
+
+.replay-status {
+  color: #a1a1aa;
+  font-size: 13px;
+  white-space: nowrap;
+}

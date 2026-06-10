@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session  
 
 from app.api.dependencies import get_db
 from app.services.telemetry_service import TelemetryService
@@ -190,4 +190,39 @@ def get_sessions_by_year(
         "year": year,
         "count": len(sessions),
         "sessions": sessions,
+    }
+
+@router.get(
+    "/sessions/{session_key}/drivers/{driver_number}/openf1-locations"
+)
+def get_openf1_driver_locations(
+    session_key: int,
+    driver_number: int,
+):
+    locations = telemetry_service.get_openf1_driver_locations(
+        session_key=session_key,
+        driver_number=driver_number,
+    )
+
+    return {
+        "session_key": session_key,
+        "driver_number": driver_number,
+        "count": len(locations),
+        "locations": locations,
+    }
+
+@router.get("/sessions/{session_key}/openf1-latest-locations")
+def get_openf1_latest_locations_by_session(
+    session_key: int,
+    db: Session = Depends(get_db),
+):
+    locations = telemetry_service.get_openf1_latest_locations_by_session(
+        db=db,
+        session_key=session_key,
+    )
+
+    return {
+        "session_key": session_key,
+        "count": len(locations),
+        "locations": locations,
     }

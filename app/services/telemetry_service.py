@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
-
+import requests
+from app.core.config import settings
 from app.cache.redis_client import redis_client
 from app.repositories.telemetry_repository import TelemetryRepository
 
@@ -250,3 +251,71 @@ class TelemetryService:
             }
             for row in rows
         ]
+    
+    def get_openf1_driver_locations(
+        self,
+        session_key: int,
+        driver_number: int,
+    ):
+        response = requests.get(
+            f"{settings.OPENF1_BASE_URL}/location",
+            params={
+                "session_key": session_key,
+                "driver_number": driver_number,
+            },
+            timeout=30,
+        )
+
+        response.raise_for_status()
+
+        data = response.json()
+
+        locations = [
+            point
+            for point in data
+            if point.get("x") not in (None, 0)
+            and point.get("y") not in (None, 0)
+        ]
+
+        if len(locations) > 2000:
+            step = len(locations) / 2000
+
+            locations = [
+                locations[int(index * step)]
+                for index in range(2000)
+            ]
+
+        return locations
+    
+    def get_openf1_latest_locations_by_session(
+        self,
+        db: Session,
+        session_key: int,
+    ):
+        drivers = self.get_drivers_by_session(
+            db=db,
+            session_key=session_key,
+        )
+
+        latest_locations = []
+
+        for driver in drivers:
+            driver_number = driver["driver_number"]
+
+            try:
+                locations = self.get_openf1_driver_locations(
+                    session_key=session_key,
+                    driver_number=driver_number,
+                )
+
+                if locations:
+                    latest_location = locations[-1]
+                    latest_locations.append(latest_location)
+
+            except Exception as error:
+                print(
+                    f"Failed to fetch latest location for "
+                    f"driver={driver_number}: {error}"
+                )
+
+        return latest_locations
