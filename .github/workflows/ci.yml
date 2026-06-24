@@ -11,9 +11,14 @@ on:
       - master
 
 jobs:
-  backend-check:
+    backend-check:
     name: Backend Import Check
     runs-on: ubuntu-latest
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
+      REDIS_URL: redis://localhost:6379/0
+      KAFKA_BOOTSTRAP_SERVERS: localhost:9092
 
     steps:
       - name: Checkout repository
@@ -37,7 +42,7 @@ jobs:
         run: |
           python -c "from app.main import app; print(app.title)"
 
-  docker-check:
+docker-check:
     name: Docker Compose Check
     runs-on: ubuntu-latest
 
