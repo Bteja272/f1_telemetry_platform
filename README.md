@@ -9,7 +9,7 @@
 
 > A production-style distributed telemetry platform ingesting live Formula 1 data through Kafka, storing time-series events in TimescaleDB, caching state in Redis, and delivering real-time visualizations via WebSockets and React — deployed on AWS EC2 with GitHub Actions CI.
 
-**🔴 [Live Demo](https://your-vercel-url.vercel.app)** &nbsp;|&nbsp; **[API Docs](https://your-cloudflare-url.trycloudflare.com/docs)**
+**🔴 > **Note:** Live demo requires a running Cloudflare Tunnel session. See [Deployment](#️-deployment-aws-ec2) to run locally or spin up your own instance.**
 
 ---
 
