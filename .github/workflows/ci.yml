@@ -42,14 +42,14 @@ jobs:
           run: |
             python -c "from app.main import app; print(app.title)"
 
-docker-check:
-    name: Docker Compose Check
-    runs-on: ubuntu-latest
+    docker-check:
+        name: Docker Compose Check
+        runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+        steps:
+          - name: Checkout repository
+            uses: actions/checkout@v4
 
-      - name: Validate Docker Compose config
-        run: |
-          docker compose config
+          - name: Validate Docker Compose config
+            run: |
+              docker compose config
